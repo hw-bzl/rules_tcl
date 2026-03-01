@@ -2,20 +2,20 @@ load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("//tcl:tcl_binary.bzl", "tcl_binary")
-load("//tcl:tcl_format_test.bzl", "tcl_format_test")
-load("//tcl:tcl_lint_test.bzl", "tcl_lint_test")
+load("//tcl/nagelfar:tcl_nagelfar_test.bzl", "tcl_nagelfar_test")
+load("//tcl/tclint:tcl_tclint_fmt_test.bzl", "tcl_tclint_fmt_test")
 
 tcl_binary(
     name = "writer",
     srcs = ["writer.tcl"],
 )
 
-tcl_lint_test(
+tcl_nagelfar_test(
     name = "writer_lint",
     target = ":writer",
 )
 
-tcl_format_test(
+tcl_tclint_fmt_test(
     name = "writer_format",
     target = ":writer",
 )

@@ -8,7 +8,7 @@ package require fileutil
 
 # Validate arguments
 if {$argc < 3} {
-    puts stderr "Usage: $argv0 <config.json> <main.tcl> -- [args...]"
+    puts stderr "Usage: $argv0 <config.json> <main.tcl> -- \[args...\]"
     exit 1
 }
 
@@ -34,7 +34,9 @@ set extra_args [lrange $argv [expr {$separator_index + 1}] end]
 set argv [lrange $argv 0 [expr {$separator_index - 1}]]
 
 # Load JSON config
-set json_text [read [open $config_path]]
+set config_fh [open $config_path]
+set json_text [read $config_fh]
+close $config_fh
 set config [::json::json2dict $json_text]
 set includes [dict get $config includes]
 if {$includes eq ""} {
@@ -48,7 +50,7 @@ if {[info exists ::env(RUNFILES_DIR)]} {
     set manifest $::env(RUNFILES_MANIFEST_FILE)
     set runfiles [fileutil::tempdir]
     if {[info exists ::env(RULES_TCL_DEBUG)]} {
-        puts stderr "[DEBUG] RUNFILES_DIR created: $runfiles"
+        puts stderr "\[DEBUG\] RUNFILES_DIR created: $runfiles"
     }
     set ::env(RUNFILES_DIR) $runfiles
 
@@ -85,12 +87,7 @@ foreach inc $includes {
     lappend include_paths [file join $runfiles $inc]
 }
 
-# Get current perl interpreter
 set tclsh_path [info nameofexecutable]
-set inc_flags {}
-foreach inc $include_paths {
-    lappend inc_flags "-I" $inc
-}
 
 # Build full command
 set cmd [concat $tclsh_path $main_path $extra_args]
@@ -105,7 +102,7 @@ set ::env(TCLLIBPATH) [join $include_paths " "]
 # Execute
 set exit_code [catch {
     exec {*}$cmd >@stdout 2>@stderr
-} err]
+}]
 
 if {$exit_code != 0} {
     exit $exit_code

@@ -64,7 +64,6 @@ def _tcl_toolchain_impl(ctx):
             includes = depset([tcllib_info.include, tcl_core_info.include]),
             init_tcl = tcl_core_info.init_tcl,
             tcllib_pkg_index = tcllib_info.pkg_index,
-            tclint = ctx.attr.tclint,
             all_files = all_files,
         ),
         make_variable_info,
@@ -79,7 +78,6 @@ and `tcl_test` targets. It specifies:
 - The Tcl interpreter (`tclsh`) to use for execution
 - The Tcl core library files (`tclcore`)
 - The Tcl standard library (`tcllib`)
-- Optional linting tools (`tclint`) for code quality checks
 
 Typically, you don't need to create a `tcl_toolchain` directly. The rules provide a default
 toolchain that you register in your `MODULE.bazel`:
@@ -98,7 +96,6 @@ tcl_toolchain(
     tclsh = "@tcl_8_6//:tclsh",
     tclcore = "@tcl_8_6//:tclcore",
     tcllib = "@tcllib//:tcllib",
-    tclint = "@tclint//:tclint",  # Optional, for linting
 )
 ```
 """,
@@ -107,11 +104,6 @@ tcl_toolchain(
         "tclcore": attr.label(
             doc = "A label to the `tclcore` files.",
             mandatory = True,
-        ),
-        "tclint": attr.label(
-            doc = "The [`tclint`](https://github.com/nmoroze/tclint) python library. This attribute is required for [`tcl_lint_aspect`](#tcl_lint_aspect)/[`tcl_format_aspect`](#tcl_format_aspect) but otherwise optional for core rules.",
-            cfg = "target",
-            mandatory = False,
         ),
         "tcllib": attr.label(
             doc = "A label to the `tcllib` files.",

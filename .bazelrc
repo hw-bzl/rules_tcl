@@ -33,13 +33,17 @@ build --incompatible_autoload_externally=
 ## Configuration Flags
 ###############################################################################
 
+# Enable nagelfar for all targets in the workspace
+build:nagelfar --aspects=//tcl/nagelfar:tcl_nagelfar_aspect.bzl%tcl_nagelfar_aspect
+build:nagelfar --output_groups=+tcl_nagelfar_checks
+
 # Enable tclint for all targets in the workspace
-build:tclint --aspects=//tcl:tcl_lint_aspect.bzl%tcl_lint_aspect
-build:tclint --output_groups=+tcl_lint_checks
+build:tclint --aspects=//tcl/tclint:tcl_tclint_aspect.bzl%tcl_tclint_aspect
+build:tclint --output_groups=+tcl_tclint_checks
 
 # Enable tclfmt for all targets in the workspace
-build:tclfmt --aspects=//tcl:tcl_format_aspect.bzl%tcl_format_aspect
-build:tclfmt --output_groups=+tcl_format_checks
+build:tclfmt --aspects=//tcl/tclint:tcl_tclint_fmt_aspect.bzl%tcl_tclint_fmt_aspect
+build:tclfmt --output_groups=+tcl_tclint_fmt_checks
 
 # Enable black for all targets in the workspace
 build:black --aspects=@rules_venv//python/black:defs.bzl%py_black_aspect
@@ -61,6 +65,7 @@ build:pylint --output_groups=+py_pylint_checks
 build --@rules_venv//python/pylint:config=//:.pylintrc.toml
 
 # Define a config that enables all linter aspects.
+build:strict --config=nagelfar
 build:strict --config=tclint
 build:strict --config=tclfmt
 build:strict --config=black

@@ -93,6 +93,7 @@ def _create_dep_info(*, ctx, deps):
     srcs = []
     for dep in deps:
         info = dep[TclInfo]
+        srcs.append(info.srcs)
         srcs.append(info.transitive_srcs)
         includes.append(info.includes)
         workspace_name = dep.label.workspace_name

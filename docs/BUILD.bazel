@@ -11,10 +11,30 @@ stardoc(
     deps = ["@rules_tcl//tcl:bzl_lib"],
 )
 
+stardoc(
+    name = "nagelfar",
+    out = "src/nagelfar.md",
+    input = "//tcl/nagelfar:defs.bzl",
+    table_of_contents_template = "@stardoc//stardoc:templates/markdown_tables/table_of_contents.vm",
+    tags = ["manual"],
+    deps = ["@rules_tcl//tcl/nagelfar:bzl_lib"],
+)
+
+stardoc(
+    name = "tclint",
+    out = "src/tclint.md",
+    input = "//tcl/tclint:defs.bzl",
+    table_of_contents_template = "@stardoc//stardoc:templates/markdown_tables/table_of_contents.vm",
+    tags = ["manual"],
+    deps = ["@rules_tcl//tcl/tclint:bzl_lib"],
+)
+
 mdbook(
     name = "book",
     srcs = glob(["src/**/*.md"]) + [
+        ":nagelfar",
         ":rules",
+        ":tclint",
     ],
     book = "book.toml",
     # Windows builds are typically super slow in CI so they're avoided.

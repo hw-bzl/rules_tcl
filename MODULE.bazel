@@ -8,8 +8,8 @@ module(
 bazel_dep(name = "bazel_skylib", version = "1.8.2")
 bazel_dep(name = "tcl_lang", version = "9.0.2.bcr.1")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "rules_venv", version = "0.7.0")
-bazel_dep(name = "rules_req_compile", version = "1.0.0rc41")
+bazel_dep(name = "rules_venv", version = "0.10.0")
+bazel_dep(name = "rules_req_compile", version = "1.1.0")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -35,7 +35,22 @@ use_repo(requirements, "tcl_pip_deps")
 
 register_toolchains(
     "//tcl/toolchain",
-    dev_dependency = True,
+)
+
+nagelfar = use_extension("//tcl/nagelfar:extensions.bzl", "nagelfar")
+nagelfar.toolchain()
+use_repo(nagelfar, "nagelfar_toolchains")
+
+register_toolchains(
+    "@nagelfar_toolchains//:all",
+)
+
+tclint_ext = use_extension("//tcl/tclint:extensions.bzl", "tclint")
+tclint_ext.toolchain()
+use_repo(tclint_ext, "tclint_toolchains")
+
+register_toolchains(
+    "@tclint_toolchains//:all",
 )
 
 bazel_dep(name = "stardoc", version = "0.8.0", dev_dependency = True)

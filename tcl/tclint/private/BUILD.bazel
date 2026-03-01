@@ -1,9 +1,9 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_venv//python:py_binary.bzl", "py_binary")
-load("//tcl/private/linting:lint.bzl", "current_tcl_tclint_toolchain")
+load("//tcl/tclint:tclint_toolchain.bzl", "current_tclint_toolchain")
 
-current_tcl_tclint_toolchain(
-    name = "current_tcl_tclint_toolchain",
+current_tclint_toolchain(
+    name = "current_tclint_toolchain",
 )
 
 py_binary(
@@ -11,7 +11,7 @@ py_binary(
     srcs = ["format_checker.py"],
     visibility = ["//visibility:public"],
     deps = [
-        ":current_tcl_tclint_toolchain",
+        ":current_tclint_toolchain",
         "@rules_venv//python/runfiles",
     ],
 )
@@ -20,14 +20,14 @@ py_binary(
     name = "formatter",
     srcs = ["formatter.py"],
     data = [
-        "//tcl/settings:tclint_config",
+        "//tcl/tclint:config",
     ],
     env = {
-        "TCLFMT_SETTINGS_PATH": "$(rlocationpath //tcl/settings:tclint_config)",
+        "TCLFMT_SETTINGS_PATH": "$(rlocationpath //tcl/tclint:config)",
     },
     visibility = ["//visibility:public"],
     deps = [
-        ":current_tcl_tclint_toolchain",
+        ":current_tclint_toolchain",
         "@rules_venv//python/runfiles",
     ],
 )
@@ -37,7 +37,7 @@ py_binary(
     srcs = ["linter.py"],
     visibility = ["//visibility:public"],
     deps = [
-        ":current_tcl_tclint_toolchain",
+        ":current_tclint_toolchain",
         "@rules_venv//python/runfiles",
     ],
 )
@@ -45,8 +45,9 @@ py_binary(
 bzl_library(
     name = "bzl_lib",
     srcs = glob(["*.bzl"]),
-    visibility = ["//tcl/private:__pkg__"],
+    visibility = ["//tcl/tclint:__pkg__"],
     deps = [
+        "//tcl:bzl_lib",
         "@rules_venv//python:defs_bzl",
     ],
 )

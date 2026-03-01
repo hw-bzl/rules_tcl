@@ -19,9 +19,11 @@ alias(
 bzl_library(
     name = "bzl_lib",
     srcs = glob(["*.bzl"]),
-    visibility = ["//tcl:__pkg__"],
-    deps = [
-        "//tcl/private/linting:bzl_lib",
+    visibility = [
+        "//tcl:__pkg__",
+        "//tcl/nagelfar:__pkg__",
+        "//tcl/private:__subpackages__",
+        "//tcl/tclint:__pkg__",
     ],
 )
 

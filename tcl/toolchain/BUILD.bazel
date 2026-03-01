@@ -3,7 +3,6 @@ load("//tcl:tcl_toolchain.bzl", "TOOLCHAIN_TYPE", "tcl_toolchain")
 tcl_toolchain(
     name = "tcl_toolchain",
     tclcore = "@tcl_lang//:tcl_core",
-    tclint = "@tcl_pip_deps//tclint",
     tcllib = "@tcllib",
     tclsh = "@tcl_lang//:tclsh",
     visibility = ["//visibility:public"],

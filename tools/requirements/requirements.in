@@ -1,5 +1,5 @@
 # Python requirements
--r ../../tcl/requirements.in
+-r ../../tcl/tclint/requirements.in
 
 # Development dependencies
 black

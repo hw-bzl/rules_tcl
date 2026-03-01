@@ -2,11 +2,10 @@ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
 exports_files([
     "defs.bzl",
-    "tcl_binary.bzl",
-    "tcl_info.bzl",
-    "tcl_library.bzl",
-    "tcl_test.bzl",
-    "tcl_toolchain.bzl",
+    "extensions.bzl",
+    "nagelfar_toolchain.bzl",
+    "tcl_nagelfar_aspect.bzl",
+    "tcl_nagelfar_test.bzl",
 ])
 
 toolchain_type(
@@ -19,6 +18,6 @@ bzl_library(
     srcs = glob(["*.bzl"]),
     visibility = ["//visibility:public"],
     deps = [
-        "//tcl/private:bzl_lib",
+        "//tcl/nagelfar/private:bzl_lib",
     ],
 )

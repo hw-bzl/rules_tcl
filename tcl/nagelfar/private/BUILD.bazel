@@ -1,0 +1,19 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//tcl:tcl_binary.bzl", "tcl_binary")
+
+tcl_binary(
+    name = "runner",
+    srcs = ["nagelfar_runner.tcl"],
+    tags = ["no_nagelfar"],
+    visibility = ["//visibility:public"],
+    deps = ["//tcl/runfiles"],
+)
+
+bzl_library(
+    name = "bzl_lib",
+    srcs = glob(["*.bzl"]),
+    visibility = ["//tcl/nagelfar:__pkg__"],
+    deps = [
+        "//tcl:bzl_lib",
+    ],
+)

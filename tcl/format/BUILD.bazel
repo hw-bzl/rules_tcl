@@ -1,4 +1,0 @@
-alias(
-    name = "format",
-    actual = "//tcl/private/linting:formatter",
-)

@@ -1,5 +1,5 @@
 load("//tcl:tcl_library.bzl", "tcl_library")
-load("//tcl/tclint:tcl_tclint_fmt_test.bzl", "tcl_tclint_fmt_test")
+load("//tcl/nagelfar:tcl_nagelfar_test.bzl", "tcl_nagelfar_test")
 
 tcl_library(
     name = "test_lib",
@@ -10,7 +10,7 @@ tcl_library(
     visibility = ["//tcl/private/tests:__subpackages__"],
 )
 
-tcl_tclint_fmt_test(
-    name = "test_lib_format",
+tcl_nagelfar_test(
+    name = "test_lib_nagelfar",
     target = ":test_lib",
 )
