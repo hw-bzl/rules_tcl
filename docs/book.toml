@@ -6,4 +6,4 @@ src = "src"
 title = "rules_tcl"
 
 [output.html]
-git-repository-url = "https://github.com/periareon/rules_tcl"
+git-repository-url = "https://github.com/hw-bzl/rules_tcl"
