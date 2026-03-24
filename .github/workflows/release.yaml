@@ -18,7 +18,7 @@ env:
 
 jobs:
   release:
-    if: ${{ github.repository_owner == 'periareon' }}
+    if: ${{ github.repository_owner == 'hw-bzl' }}
     permissions:
       contents: write
       actions: write
