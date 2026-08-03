@@ -28,7 +28,7 @@ jobs:
   publish:
     uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@v1.1.0
     with:
-      attest: false
+      attest: true
       tag_name: ${{ inputs.release_version }}
       author_name: hw-bzl-bot
       # https://api.github.com/users/hw-bzl-bot
@@ -41,5 +41,7 @@ jobs:
       draft: false
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     secrets:
       publish_token: ${{ secrets.BCR_PUBLISH_TOKEN }}
