@@ -169,13 +169,49 @@
 <p>The rules handle Tcl's package system, runfiles, and provide seamless integration with Bazel's build system.</p>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
 <h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
-<p>Add the following to your <code>MODULE.bazel</code> file:</p>
+<p><code>rules_tcl</code> does not ship a pre-registered toolchain — you declare the interpreter
+and libraries you want and register a <code>tcl_toolchain</code> locally. Add the following to
+your <code>MODULE.bazel</code>:</p>
 <pre><code class="language-python">bazel_dep(name = "rules_tcl", version = "{version}")
+bazel_dep(name = "tcl_lang", version = "{tcl_lang_version}")
+bazel_dep(name = "bazel_skylib", version = "{bazel_skylib_version}")
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "tcllib",
+    build_file = "@rules_tcl//tcl/private:BUILD.tcllib.bazel",
+    integrity = "sha256-ZCwsZ5yQF6tv3tAzJOTOm19Ckkc7YlIOgqrOu2PAziA=",
+    strip_prefix = "tcllib-2.0",
+    urls = ["https://core.tcl-lang.org/tcllib/uv/tcllib-2.0.tar.xz"],
+)
 
 register_toolchains(
-    "@rules_tcl//tcl/toolchain",
+    "//toolchain",
 )
 </code></pre>
+<p>Then in <code>//toolchain/BUILD.bazel</code>:</p>
+<pre><code class="language-python">load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain")
+
+tcl_toolchain(
+    name = "tcl_toolchain",
+    tclsh = "@tcl_lang//:tclsh",
+    tclcore = "@tcl_lang//:tcl_core",
+    tcllib = "@tcllib",
+    wrapper_template = "@rules_tcl//tcl/private:binary_wrapper.tpl",
+    wrapper_entrypoint = "@rules_tcl//tcl/private:entrypoint.tcl",
+)
+
+toolchain(
+    name = "toolchain",
+    toolchain = ":tcl_toolchain",
+    toolchain_type = "@rules_tcl//tcl:toolchain_type",
+)
+</code></pre>
+<p>See <a href="https://github.com/hw-bzl/rules_tcl/tree/main/examples">the <code>examples/</code> directory</a>
+for a working setup. Users who need a custom interpreter (e.g. a vendor tool's
+<code>tclsh</code>) or a custom wrapper stub swap the corresponding attribute — see the
+<a href="./rules.html"><code>tcl_toolchain</code></a> rule doc for the full contract.</p>
 <h3 id="basic-example"><a class="header" href="#basic-example">Basic Example</a></h3>
 <p>Create a simple Tcl executable:</p>
 <pre><code class="language-python">load("@rules_tcl//tcl:tcl_binary.bzl", "tcl_binary")

@@ -170,13 +170,49 @@
 <p>The rules handle Tcl's package system, runfiles, and provide seamless integration with Bazel's build system.</p>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
 <h3 id="setup"><a class="header" href="#setup">Setup</a></h3>
-<p>Add the following to your <code>MODULE.bazel</code> file:</p>
+<p><code>rules_tcl</code> does not ship a pre-registered toolchain — you declare the interpreter
+and libraries you want and register a <code>tcl_toolchain</code> locally. Add the following to
+your <code>MODULE.bazel</code>:</p>
 <pre><code class="language-python">bazel_dep(name = "rules_tcl", version = "{version}")
+bazel_dep(name = "tcl_lang", version = "{tcl_lang_version}")
+bazel_dep(name = "bazel_skylib", version = "{bazel_skylib_version}")
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "tcllib",
+    build_file = "@rules_tcl//tcl/private:BUILD.tcllib.bazel",
+    integrity = "sha256-ZCwsZ5yQF6tv3tAzJOTOm19Ckkc7YlIOgqrOu2PAziA=",
+    strip_prefix = "tcllib-2.0",
+    urls = ["https://core.tcl-lang.org/tcllib/uv/tcllib-2.0.tar.xz"],
+)
 
 register_toolchains(
-    "@rules_tcl//tcl/toolchain",
+    "//toolchain",
 )
 </code></pre>
+<p>Then in <code>//toolchain/BUILD.bazel</code>:</p>
+<pre><code class="language-python">load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain")
+
+tcl_toolchain(
+    name = "tcl_toolchain",
+    tclsh = "@tcl_lang//:tclsh",
+    tclcore = "@tcl_lang//:tcl_core",
+    tcllib = "@tcllib",
+    wrapper_template = "@rules_tcl//tcl/private:binary_wrapper.tpl",
+    wrapper_entrypoint = "@rules_tcl//tcl/private:entrypoint.tcl",
+)
+
+toolchain(
+    name = "toolchain",
+    toolchain = ":tcl_toolchain",
+    toolchain_type = "@rules_tcl//tcl:toolchain_type",
+)
+</code></pre>
+<p>See <a href="https://github.com/hw-bzl/rules_tcl/tree/main/examples">the <code>examples/</code> directory</a>
+for a working setup. Users who need a custom interpreter (e.g. a vendor tool's
+<code>tclsh</code>) or a custom wrapper stub swap the corresponding attribute — see the
+<a href="./rules.html"><code>tcl_toolchain</code></a> rule doc for the full contract.</p>
 <h3 id="basic-example"><a class="header" href="#basic-example">Basic Example</a></h3>
 <p>Create a simple Tcl executable:</p>
 <pre><code class="language-python">load("@rules_tcl//tcl:tcl_binary.bzl", "tcl_binary")
@@ -286,36 +322,95 @@ tcl_library(
 <pre>
 load("@rules_tcl//tcl:defs.bzl", "tcl_toolchain")
 
-tcl_toolchain(<a href="rules.html#tcl_toolchain-name">name</a>, <a href="rules.html#tcl_toolchain-tclcore">tclcore</a>, <a href="rules.html#tcl_toolchain-tcllib">tcllib</a>, <a href="rules.html#tcl_toolchain-tclsh">tclsh</a>)
+tcl_toolchain(<a href="rules.html#tcl_toolchain-name">name</a>, <a href="rules.html#tcl_toolchain-tclcore">tclcore</a>, <a href="rules.html#tcl_toolchain-tcllib">tcllib</a>, <a href="rules.html#tcl_toolchain-tclsh">tclsh</a>, <a href="rules.html#tcl_toolchain-wrapper_entrypoint">wrapper_entrypoint</a>, <a href="rules.html#tcl_toolchain-wrapper_template">wrapper_template</a>)
 </pre>
-<p>A toolchain rule that defines the Tcl interpreter and libraries for building Tcl targets.</p>
-<p>The <code>tcl_toolchain</code> rule configures the Tcl environment used by all <code>tcl_binary</code>, <code>tcl_library</code>,
-and <code>tcl_test</code> targets. It specifies:</p>
-<ul>
-<li>The Tcl interpreter (<code>tclsh</code>) to use for execution</li>
-<li>The Tcl core library files (<code>tclcore</code>)</li>
-<li>The Tcl standard library (<code>tcllib</code>)</li>
-</ul>
-<p>Typically, you don't need to create a <code>tcl_toolchain</code> directly. The rules provide a default
-toolchain that you register in your <code>MODULE.bazel</code>:</p>
+<p>A toolchain rule that defines the Tcl interpreter, libraries, and executable wrapper used
+to build <code>tcl_binary</code>, <code>tcl_library</code>, and <code>tcl_test</code> targets.</p>
+<h2 id="registering-a-toolchain"><a class="header" href="#registering-a-toolchain">Registering a toolchain</a></h2>
+<p><code>rules_tcl</code> does not register a toolchain for you. Add the following to your <code>MODULE.bazel</code>
+to use the default (a stock <code>tclsh</code> and tcllib, with the built-in shell/batch wrapper):</p>
 <pre><code class="language-python">register_toolchains("@rules_tcl//tcl/toolchain")
 </code></pre>
-<p>If you need a custom toolchain (e.g., a different Tcl version), you can define your own:</p>
+<p>If you need a custom toolchain (e.g. a different Tcl version, or a wrapper that dispatches
+into a different host interpreter), define your own:</p>
 <pre><code class="language-python">load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain")
 
 tcl_toolchain(
     name = "my_tcl_toolchain",
-    tclsh = "@tcl_8_6//:tclsh",
-    tclcore = "@tcl_8_6//:tclcore",
-    tcllib = "@tcllib//:tcllib",
+    tclsh = "@my_tcl//:tclsh",
+    tclcore = "@my_tcl//:tclcore",  # optional
+    tcllib = "@tcllib//:tcllib",    # optional
+    wrapper_template = "//path/to:my_wrapper_bundle",
+    wrapper_entrypoint = "//path/to:my_entrypoint.tcl",  # optional
 )
 </code></pre>
+<p><code>tclcore</code> and <code>tcllib</code> may be omitted when the interpreter ships them itself.
+<code>wrapper_entrypoint</code> is optional when the wrapper does not need a bootstrap script.</p>
+<p>The template's own <code>DefaultInfo.default_runfiles</code> are merged into every produced binary,
+so a template that needs a helper library (e.g. <code>@rules_shell//shell/runfiles</code> for sh,
+<code>@rules_batch//batch/runfiles</code> for batch) should be declared via a <code>filegroup</code> that lists
+the helper under <code>data</code>:</p>
+<pre><code class="language-python">filegroup(
+    name = "my_wrapper_bundle",
+    srcs = ["my_wrapper.sh.tpl"],
+    data = ["@rules_shell//shell/runfiles"],
+)
+</code></pre>
+<p>The same is true for <code>wrapper_entrypoint</code> — a <code>filegroup</code> around the entrypoint can carry
+extra runtime data it needs at execution.</p>
+<p>The extension appended to the produced wrapper is derived from the template's filename by
+stripping a single known template suffix (<code>.tpl</code>, <code>.template</code>, <code>.tmpl</code>, <code>.in</code>). Name the
+template <code>&lt;something&gt;.&lt;ext&gt;.&lt;template-suffix&gt;</code> — e.g. <code>my_wrapper.sh.tpl</code> yields <code>.sh</code>,
+<code>my_wrapper.bat.template</code> yields <code>.bat</code>.</p>
+<h2 id="toolchaininfo-contract"><a class="header" href="#toolchaininfo-contract"><code>ToolchainInfo</code> contract</a></h2>
+<p>The rule returns a <code>platform_common.ToolchainInfo</code> with the following fields. Non-underscore
+fields are the public contract that consumers (including third-party rules that operate
+over Tcl targets) may read. Underscore-prefixed fields are internal to the built-in
+<code>tcl_binary</code> / <code>tcl_test</code> implementation — third-party rules that want a materially
+different wrapper should carry their own template rather than reach into them.</p>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Access</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>tclsh</code></td><td><code>File</code></td><td>public</td><td>Executable of the interpreter that will run the produced binaries.</td></tr>
+<tr><td><code>includes</code></td><td><code>depset[str]</code></td><td>public</td><td>Runfiles-relative include paths implicitly on <code>auto_path</code>.</td></tr>
+<tr><td><code>init_tcl</code></td><td><code>File | None</code></td><td>public</td><td><code>init.tcl</code> from tclcore, or <code>None</code>.</td></tr>
+<tr><td><code>tcllib_pkg_index</code></td><td><code>File | None</code></td><td>public</td><td>tcllib's top-level <code>pkgIndex.tcl</code>, or <code>None</code>.</td></tr>
+<tr><td><code>all_files</code></td><td><code>depset[File]</code></td><td>public</td><td>Runtime files merged into every produced target.</td></tr>
+<tr><td><code>make_variable_info</code></td><td><code>platform_common.TemplateVariableInfo</code></td><td>public</td><td>Exposes <code>$(TCLSH)</code> for <code>env</code> on downstream rules.</td></tr>
+<tr><td><code>_wrapper_*</code></td><td>(various)</td><td>internal</td><td>Wrapper template, entrypoint, and derived extension.</td></tr>
+</tbody></table>
+</div>
+<h2 id="wrapper-template-contract"><a class="header" href="#wrapper-template-contract">Wrapper template contract</a></h2>
+<p>The built-in <code>tcl_binary</code> / <code>tcl_test</code> expand <code>wrapper_template</code> once per target into a
+file named <code>&lt;target&gt;&lt;wrapper_extension&gt;</code> and set it as the target's executable. The
+template supports these substitutions; values whose backing toolchain field is unset
+expand to the empty string, so a template can simply omit lines it does not need:</p>
+<div class="table-wrapper"><table><thead><tr><th>Substitution</th><th>Value</th><th>Empty when</th></tr></thead><tbody>
+<tr><td><code>{interpreter}</code></td><td>Runfiles path (rlocation) of <code>tclsh</code>.</td><td>never</td></tr>
+<tr><td><code>{entrypoint}</code></td><td>Runfiles path of <code>wrapper_entrypoint</code>.</td><td><code>wrapper_entrypoint</code> unset</td></tr>
+<tr><td><code>{config}</code></td><td>Runfiles path of a per-target JSON config (see below).</td><td>never</td></tr>
+<tr><td><code>{main}</code></td><td>Runfiles path of the target's entry <code>.tcl</code> (resolved from <code>main</code> / <code>srcs</code>).</td><td>never</td></tr>
+<tr><td><code>{init_tcl}</code></td><td>Runfiles path of tclcore's <code>init.tcl</code>.</td><td><code>tclcore</code> unset</td></tr>
+<tr><td><code>{tcllib_pkg_index}</code></td><td>Runfiles path of tcllib's top-level <code>pkgIndex.tcl</code>.</td><td><code>tcllib</code> unset</td></tr>
+<tr><td><code>{auto_path}</code></td><td>Tcl-list literal (brace-quoted) of every include path visible to the target — the target's own workspace, each dep's <code>TclInfo.includes</code>, and the toolchain's <code>includes</code>. Suitable to <code>lappend</code> onto <code>auto_path</code>.</td><td>never</td></tr>
+</tbody></table>
+</div>
+<p>The <code>{config}</code> file is JSON with this shape:</p>
+<pre><code class="language-json">{
+  "includes": ["workspace_name", "workspace_name/path/to/lib", "..."],
+  "runfiles": ["workspace_name/path/to/file", "..."]
+}
+</code></pre>
+<p><code>includes</code> is the same set of runfiles-relative paths surfaced through <code>{auto_path}</code>;
+<code>runfiles</code> is every file merged into the target's runfiles. The default <code>entrypoint.tcl</code>
+consumes this to set <code>TCLLIBPATH</code> and to materialize a <code>RUNFILES_DIR</code> when only a manifest
+is available; alternate wrappers can consume, ignore, or extend it as they see fit.</p>
 <p><strong>ATTRIBUTES</strong></p>
 <div class="table-wrapper"><table><thead><tr><th style="text-align: left">Name</th><th style="text-align: left">Description</th><th style="text-align: left">Type</th><th style="text-align: left">Mandatory</th><th style="text-align: left">Default</th></tr></thead><tbody>
 <tr><td style="text-align: left"><a id="tcl_toolchain-name"></a>name</td><td style="text-align: left">A unique name for this target.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels#target-names">Name</a></td><td style="text-align: left">required</td><td style="text-align: left"></td></tr>
-<tr><td style="text-align: left"><a id="tcl_toolchain-tclcore"></a>tclcore</td><td style="text-align: left">A label to the <code>tclcore</code> files.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">required</td><td style="text-align: left"></td></tr>
-<tr><td style="text-align: left"><a id="tcl_toolchain-tcllib"></a>tcllib</td><td style="text-align: left">A label to the <code>tcllib</code> files.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">required</td><td style="text-align: left"></td></tr>
-<tr><td style="text-align: left"><a id="tcl_toolchain-tclsh"></a>tclsh</td><td style="text-align: left">The path to a <code>tclsh</code> binary.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">required</td><td style="text-align: left"></td></tr>
+<tr><td style="text-align: left"><a id="tcl_toolchain-tclcore"></a>tclcore</td><td style="text-align: left">A label to the <code>tclcore</code> files.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">optional</td><td style="text-align: left"><code>None</code></td></tr>
+<tr><td style="text-align: left"><a id="tcl_toolchain-tcllib"></a>tcllib</td><td style="text-align: left">A label to the <code>tcllib</code> files.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">optional</td><td style="text-align: left"><code>None</code></td></tr>
+<tr><td style="text-align: left"><a id="tcl_toolchain-tclsh"></a>tclsh</td><td style="text-align: left">The path to a <code>tclsh</code> binary. Runtime dependency of every produced <code>tcl_binary</code> / <code>tcl_test</code>.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">required</td><td style="text-align: left"></td></tr>
+<tr><td style="text-align: left"><a id="tcl_toolchain-wrapper_entrypoint"></a>wrapper_entrypoint</td><td style="text-align: left">Optional <code>.tcl</code> file added to the binary's runfiles and referenced via the <code>{entrypoint}</code> template substitution. The target's <code>default_runfiles</code> are also merged in. Leave unset when the wrapper doesn't need a bootstrap.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">optional</td><td style="text-align: left"><code>None</code></td></tr>
+<tr><td style="text-align: left"><a id="tcl_toolchain-wrapper_template"></a>wrapper_template</td><td style="text-align: left">Template expanded per <code>tcl_binary</code> / <code>tcl_test</code>. The target's <code>default_runfiles</code> are merged into every produced binary, so a <code>filegroup</code> wrapping the template can list helper libraries under <code>data</code> (e.g. <code>@bazel_tools//tools/bash/runfiles</code>). See the wrapper template contract in the rule docs for the supported substitutions.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">required</td><td style="text-align: left"></td></tr>
 </tbody></table>
 </div><div style="break-before: page; page-break-before: always;"></div><!-- Generated with Stardoc: http://skydoc.bazel.build -->
 <p>Nagelfar Bazel rules</p>
