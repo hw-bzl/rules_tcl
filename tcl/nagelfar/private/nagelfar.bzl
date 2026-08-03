@@ -57,8 +57,6 @@ def _tcl_nagelfar_aspect_impl(target, ctx):
     toolchain = ctx.toolchains[TOOLCHAIN_TYPE]
     nagelfar_toolchain = ctx.toolchains[NAGELFAR_TOOLCHAIN_TYPE]
 
-    args.add("--tclsh", toolchain.tclsh)
-    args.add("--tcl-library", toolchain.init_tcl)
     args.add("--nagelfar", nagelfar_toolchain.nagelfar)
     args.add_all(nagelfar_toolchain.syntaxdb, format_each = "--syntaxdb=%s")
     args.add("--tcllib-pkg-index", toolchain.tcllib_pkg_index)
@@ -144,8 +142,6 @@ def _tcl_nagelfar_test_impl(ctx):
 
     args = ctx.actions.args()
     args.set_param_file_format("multiline")
-    args.add("--tclsh", _rlocationpath(toolchain.tclsh, ctx.workspace_name))
-    args.add("--tcl-library", _rlocationpath(toolchain.init_tcl, ctx.workspace_name))
     args.add("--nagelfar", _rlocationpath(nagelfar_toolchain.nagelfar, ctx.workspace_name))
     for db in nagelfar_toolchain.syntaxdb:
         args.add("--syntaxdb", _rlocationpath(db, ctx.workspace_name))

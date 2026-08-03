@@ -3,69 +3,43 @@
 SETLOCAL ENABLEEXTENSIONS
 SETLOCAL ENABLEDELAYEDEXPANSION
 
-@REM Usage of rlocation function:
-@REM
-@REM        call :rlocation <runfile_path> <abs_path>
-@REM
-@REM        The rlocation function maps the given <runfile_path> to its absolute
-@REM        path and stores the result in a variable named <abs_path>. This
-@REM        function fails if the <runfile_path> doesn't exist in mainifest file.
-:: Start of rlocation
-goto :rlocation_end
-:rlocation
-if "%~2" equ "" (
-    echo>&2 ERROR: Expected two arguments for rlocation function.
-    exit 1
+@REM --- begin runfiles.bat initialization v1 ---
+@REM Copy-pasted from @rules_batch//batch/runfiles (README.md).
+set "_rf=rules_batch/batch/runfiles/runfiles.bat"
+set "RLOCATION="
+if defined RUNFILES_DIR if exist "!RUNFILES_DIR!\!_rf:/=\!" set "RLOCATION=!RUNFILES_DIR!\!_rf:/=\!"
+if not defined RLOCATION if exist "%~f0.runfiles\!_rf:/=\!" (
+    set "RUNFILES_DIR=%~f0.runfiles"
+    set "RLOCATION=!RUNFILES_DIR!\!_rf:/=\!"
 )
-if exist "%RUNFILES_DIR%" (
-    set RUNFILES_MANIFEST_FILE=%RUNFILES_DIR%_manifest
+if not defined RLOCATION (
+    set "_rf_mf="
+    if defined RUNFILES_MANIFEST_FILE if exist "!RUNFILES_MANIFEST_FILE!" set "_rf_mf=!RUNFILES_MANIFEST_FILE!"
+    if not defined _rf_mf if defined RUNFILES_DIR (
+        if exist "!RUNFILES_DIR!\MANIFEST" (set "_rf_mf=!RUNFILES_DIR!\MANIFEST") else if exist "!RUNFILES_DIR!_manifest" set "_rf_mf=!RUNFILES_DIR!_manifest"
+    )
+    if not defined _rf_mf for %%m in ("%~f0.runfiles\MANIFEST" "%~f0.runfiles_manifest" "%~f0.exe.runfiles_manifest") do if not defined _rf_mf if exist "%%~m" set "_rf_mf=%%~m"
+    if defined _rf_mf (
+        set "_rf_mf=!_rf_mf:/=\!"
+        for /F "tokens=1,* usebackq" %%i in ("!_rf_mf!") do if not defined RLOCATION (
+            set "_k=%%i"
+            if "%%i" equ "!_rf!" (set "RLOCATION=%%j") else if "!_k:~-28!" equ "/batch/runfiles/runfiles.bat" set "RLOCATION=%%j"
+        )
+    )
+    if defined _rf_mf set "RUNFILES_MANIFEST_FILE=!_rf_mf!"
+    set "_rf_mf="
+    set "_k="
 )
-if "%RUNFILES_MANIFEST_FILE%" equ "" (
-    set RUNFILES_MANIFEST_FILE=%~f0.runfiles\MANIFEST
-)
-if not exist "%RUNFILES_MANIFEST_FILE%" (
-    set RUNFILES_MANIFEST_FILE=%~f0.runfiles_manifest
-)
-set MF=%RUNFILES_MANIFEST_FILE:/=\%
-if not exist "%MF%" (
-    echo>&2 ERROR: Manifest file %MF% does not exist.
-    exit 1
-)
-set runfile_path=%~1
-for /F "tokens=2* usebackq" %%i in (`%SYSTEMROOT%\system32\findstr.exe /l /c:"!runfile_path! " "%MF%"`) do (
-    set abs_path=%%i
-)
-if "!abs_path!" equ "" (
-    echo>&2 ERROR: !runfile_path! not found in runfiles manifest
-    exit 1
-)
-set %~2=!abs_path!
-exit /b 0
-:rlocation_end
+if not defined RLOCATION (echo>&2 ERROR: cannot find !_rf! & exit /b 1)
+set "_rf="
+@REM --- end runfiles.bat initialization v1 ---
 
-
-@REM Function to replace forward slashes with backslashes.
-goto :slocation_end
-:slocation
-set "input=%~1"
-set "varName=%~2"
-set "output="
-
-@REM Replace forward slashes with backslashes
-set "output=%input:/=\%"
-
-@REM Assign the sanitized path to the specified variable
-set "%varName%=%output%"
-exit /b 0
-:slocation_end
-
-
-call :rlocation "{interpreter}" INTERPRETER
-call :rlocation "{entrypoint}" ENTRYPOINT
-call :rlocation "{config}" CONFIG
-call :rlocation "{main}" MAIN
-call :rlocation "{init_tcl}" INIT_TCL
-call :rlocation "{tcllib_pkg_index}" TCLLIB_PKG_INDEX
+call "%RLOCATION%" "{interpreter}" INTERPRETER
+call "%RLOCATION%" "{entrypoint}" ENTRYPOINT
+call "%RLOCATION%" "{config}" CONFIG
+call "%RLOCATION%" "{main}" MAIN
+call "%RLOCATION%" "{init_tcl}" INIT_TCL
+call "%RLOCATION%" "{tcllib_pkg_index}" TCLLIB_PKG_INDEX
 
 for %%F in ("%INIT_TCL%") do set "init_tcl_dirname=%%~dpF"
 @REM Remove trailing backslash

@@ -32,22 +32,6 @@ _EXECUTABLE_ATTRS = _COMMON_ATTRS | {
         ),
         allow_single_file = True,
     ),
-    "_bash_runfiles": attr.label(
-        cfg = "target",
-        default = Label("@bazel_tools//tools/bash/runfiles"),
-    ),
-    "_entrypoint": attr.label(
-        doc = "The executable entrypoint.",
-        allow_single_file = True,
-        default = Label("//tcl/private:entrypoint.tcl"),
-    ),
-    "_windows_constraint": attr.label(
-        default = Label("@platforms//os:windows"),
-    ),
-    "_wrapper_template": attr.label(
-        allow_single_file = True,
-        default = Label("//tcl/private:binary_wrapper.tpl"),
-    ),
 }
 
 _TEST_ATTRS = _EXECUTABLE_ATTRS | {
@@ -326,6 +310,15 @@ def _rlocationpath(file, workspace_name):
 
     return "{}/{}".format(workspace_name, file.short_path)
 
+def _tcl_list(items):
+    """Render a Python list of strings as a Tcl list literal (brace-quoted)."""
+    return "{" + " ".join(["{" + s + "}" for s in items]) + "}"
+
+def _rlocationpath_or_empty(file, workspace_name):
+    if file == None:
+        return ""
+    return _rlocationpath(file, workspace_name)
+
 def _tcl_binary_impl(ctx):
     toolchain = ctx.toolchains[TOOLCHAIN_TYPE]
 
@@ -335,7 +328,6 @@ def _tcl_binary_impl(ctx):
         srcs = ctx.files.srcs,
     )
 
-    extension = ".sh"
     workspace_name = ctx.label.workspace_name
     if not workspace_name:
         workspace_name = ctx.workspace_name
@@ -345,13 +337,9 @@ def _tcl_binary_impl(ctx):
     include_paths = depset(
         [workspace_name],
         transitive = [dep[TclInfo].includes for dep in ctx.attr.deps] + [toolchain.includes],
-    )
+    ).to_list()
 
-    is_windows = ctx.target_platform_has_constraint(ctx.attr._windows_constraint[platform_common.ConstraintValueInfo])
-    if is_windows:
-        extension = ".bat"
-
-    output = ctx.actions.declare_file("{}{}".format(ctx.label.name, extension))
+    output = ctx.actions.declare_file("{}{}".format(ctx.label.name, toolchain._wrapper_extension))
     config = ctx.actions.declare_file("{}.config.json".format(ctx.label.name))
 
     dep_info = _create_dep_info(
@@ -361,16 +349,16 @@ def _tcl_binary_impl(ctx):
 
     runfiles = dep_info.runfiles.merge_all([
         ctx.runfiles(
-            files = [ctx.file._entrypoint] + ctx.files.srcs,
+            files = ctx.files.srcs,
             transitive_files = depset(transitive = [toolchain.all_files]),
         ),
-        ctx.attr._bash_runfiles.default_runfiles,
+        toolchain._wrapper_runfiles,
     ])
 
     ctx.actions.write(
         output = config,
         content = json.encode_indent({
-            "includes": include_paths.to_list(),
+            "includes": include_paths,
             "runfiles": [
                 _rlocationpath(src, ctx.workspace_name)
                 for src in runfiles.files.to_list()
@@ -386,15 +374,16 @@ def _tcl_binary_impl(ctx):
     )
 
     ctx.actions.expand_template(
-        template = ctx.file._wrapper_template,
+        template = toolchain._wrapper_template,
         output = output,
         substitutions = {
+            "{auto_path}": _tcl_list(include_paths),
             "{config}": _rlocationpath(config, ctx.workspace_name),
-            "{entrypoint}": _rlocationpath(ctx.file._entrypoint, ctx.workspace_name),
-            "{init_tcl}": _rlocationpath(toolchain.init_tcl, ctx.workspace_name),
+            "{entrypoint}": _rlocationpath_or_empty(toolchain._wrapper_entrypoint, ctx.workspace_name),
+            "{init_tcl}": _rlocationpath_or_empty(toolchain.init_tcl, ctx.workspace_name),
             "{interpreter}": _rlocationpath(toolchain.tclsh, ctx.workspace_name),
             "{main}": _rlocationpath(main, ctx.workspace_name),
-            "{tcllib_pkg_index}": _rlocationpath(toolchain.tcllib_pkg_index, ctx.workspace_name),
+            "{tcllib_pkg_index}": _rlocationpath_or_empty(toolchain.tcllib_pkg_index, ctx.workspace_name),
         },
         is_executable = True,
     )

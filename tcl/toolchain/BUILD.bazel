@@ -6,6 +6,8 @@ tcl_toolchain(
     tcllib = "@tcllib",
     tclsh = "@tcl_lang//:tclsh",
     visibility = ["//visibility:public"],
+    wrapper_entrypoint = "//tcl/private:entrypoint.tcl",
+    wrapper_template = "//tcl/private:binary_wrapper.tpl",
 )
 
 toolchain(

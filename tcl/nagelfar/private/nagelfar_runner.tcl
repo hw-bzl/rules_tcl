@@ -145,8 +145,6 @@ proc generate_tcllib_syntaxdb {srcs tcllib_modules_dir} {
 proc parse_args {argv use_runfiles r} {
     set srcs {}
     set dep_srcs {}
-    set tclsh_path ""
-    set tcl_library_path ""
     set nagelfar_path ""
     set syntaxdbs {}
     set marker ""
@@ -182,28 +180,6 @@ proc parse_args {argv use_runfiles r} {
                 set val [runfiles::rlocation $r $val]
             }
             lappend dep_srcs $val
-        } elseif {[string match "--tclsh=*" $arg]} {
-            set tclsh_path [string range $arg 8 end]
-            if {$use_runfiles} {
-                set tclsh_path [runfiles::rlocation $r $tclsh_path]
-            }
-        } elseif {$arg eq "--tclsh" && $i + 1 < [llength $argv]} {
-            incr i
-            set tclsh_path [lindex $argv $i]
-            if {$use_runfiles} {
-                set tclsh_path [runfiles::rlocation $r $tclsh_path]
-            }
-        } elseif {[string match "--tcl-library=*" $arg]} {
-            set tcl_library_path [string range $arg 14 end]
-            if {$use_runfiles} {
-                set tcl_library_path [runfiles::rlocation $r $tcl_library_path]
-            }
-        } elseif {$arg eq "--tcl-library" && $i + 1 < [llength $argv]} {
-            incr i
-            set tcl_library_path [lindex $argv $i]
-            if {$use_runfiles} {
-                set tcl_library_path [runfiles::rlocation $r $tcl_library_path]
-            }
         } elseif {[string match "--nagelfar=*" $arg]} {
             set nagelfar_path [string range $arg 11 end]
             if {$use_runfiles} {
@@ -249,7 +225,7 @@ proc parse_args {argv use_runfiles r} {
         incr i
     }
 
-    return [list $srcs $dep_srcs $tclsh_path $tcl_library_path \
+    return [list $srcs $dep_srcs \
         $nagelfar_path $syntaxdbs $marker $tcllib_pkg_index]
 }
 
@@ -279,13 +255,9 @@ foreach env_key {RULES_TCL_NAGELFAR_ARGS_FILE RULES_TCL_LINT_ARGS_FILE} {
 
 set parsed [parse_args $effective_argv $use_runfiles $r]
 lassign $parsed \
-    srcs dep_srcs tclsh_path tcl_library_path \
+    srcs dep_srcs \
     nagelfar_path syntaxdbs marker tcllib_pkg_index
 
-if {$tclsh_path eq ""} {
-    puts stderr "Error: --tclsh is required"
-    exit 1
-}
 if {$nagelfar_path eq ""} {
     puts stderr "Error: --nagelfar is required"
     exit 1
@@ -295,9 +267,11 @@ if {[llength $srcs] == 0} {
     exit 1
 }
 
-if {$tcl_library_path ne ""} {
-    set ::env(TCL_LIBRARY) [file dirname $tcl_library_path]
-}
+# The runner is itself launched by tclsh via its wrapper, so we reuse the
+# already-loaded interpreter (exec-arch under an aspect action, target-arch
+# under a test) for the nagelfar subprocess. TCL_LIBRARY is already set by
+# the wrapper against that same interpreter's tclcore.
+set tclsh_path [info nameofexecutable]
 
 if {$tcllib_pkg_index ne ""} {
     set tcllib_modules_dir [file dirname $tcllib_pkg_index]

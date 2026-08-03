@@ -2,13 +2,14 @@
 
 module(
     name = "rules_tcl",
-    version = "0.2.1",
+    version = "0.3.0",
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.8.2")
-bazel_dep(name = "tcl_lang", version = "9.0.2.bcr.1")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "rules_venv", version = "0.10.0")
+bazel_dep(name = "rules_batch", version = "0.0.1")
+bazel_dep(name = "rules_shell", version = "0.6.1")
+bazel_dep(name = "rules_venv", version = "0.23.0")
 bazel_dep(name = "rules_req_compile", version = "1.1.0")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
@@ -33,10 +34,6 @@ requirements.parse(
 )
 use_repo(requirements, "tcl_pip_deps")
 
-register_toolchains(
-    "//tcl/toolchain",
-)
-
 nagelfar = use_extension("//tcl/nagelfar:extensions.bzl", "nagelfar")
 nagelfar.toolchain()
 use_repo(nagelfar, "nagelfar_toolchains")
@@ -54,10 +51,11 @@ register_toolchains(
 )
 
 bazel_dep(name = "stardoc", version = "0.8.0", dev_dependency = True)
-bazel_dep(name = "rules_rust_mdbook", version = "0.67.0", dev_dependency = True)
-bazel_dep(name = "rules_shell", version = "0.6.1", dev_dependency = True)
+bazel_dep(name = "rules_rust_mdbook", version = "0.73.0", dev_dependency = True)
+bazel_dep(name = "tcl_lang", version = "9.0.2.bcr.1", dev_dependency = True)
 
 register_toolchains(
+    "//tcl/toolchain",
     "//tools/toolchains:black_toolchain",
     "//tools/toolchains:isort_toolchain",
     "//tools/toolchains:mypy_toolchain",

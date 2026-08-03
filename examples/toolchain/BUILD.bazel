@@ -1,0 +1,16 @@
+load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain")
+
+tcl_toolchain(
+    name = "tcl_toolchain",
+    tclcore = "@tcl_lang//:tcl_core",
+    tcllib = "@tcllib",
+    tclsh = "@tcl_lang//:tclsh",
+    wrapper_entrypoint = "@rules_tcl//tcl/private:entrypoint.tcl",
+    wrapper_template = "@rules_tcl//tcl/private:binary_wrapper.tpl",
+)
+
+toolchain(
+    name = "toolchain",
+    toolchain = ":tcl_toolchain",
+    toolchain_type = "@rules_tcl//tcl:toolchain_type",
+)

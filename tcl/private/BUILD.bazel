@@ -4,14 +4,29 @@ load(":tcl.bzl", "tcl_library")
 exports_files([
     "binary_wrapper.bat.tpl",
     "binary_wrapper.sh.tpl",
+    "BUILD.tcllib.bazel",
     "entrypoint.tcl",
 ])
+
+filegroup(
+    name = "binary_wrapper.sh.bundle",
+    srcs = ["binary_wrapper.sh.tpl"],
+    data = ["@rules_shell//shell/runfiles"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "binary_wrapper.bat.bundle",
+    srcs = ["binary_wrapper.bat.tpl"],
+    data = ["@rules_batch//batch/runfiles"],
+    visibility = ["//visibility:public"],
+)
 
 alias(
     name = "binary_wrapper.tpl",
     actual = select({
-        "@platforms//os:windows": "binary_wrapper.bat.tpl",
-        "//conditions:default": "binary_wrapper.sh.tpl",
+        "@platforms//os:windows": ":binary_wrapper.bat.bundle",
+        "//conditions:default": ":binary_wrapper.sh.bundle",
     }),
     visibility = ["//visibility:public"],
 )
