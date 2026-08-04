@@ -2,6 +2,7 @@ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
 exports_files([
     "defs.bzl",
+    "extensions.bzl",
     "tcl_binary.bzl",
     "tcl_info.bzl",
     "tcl_library.bzl",
