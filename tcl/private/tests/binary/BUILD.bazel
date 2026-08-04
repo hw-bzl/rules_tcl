@@ -45,3 +45,34 @@ diff_test(
     file1 = ":writer_expected.txt",
     file2 = ":writer_output.txt",
 )
+
+tcl_binary(
+    name = "scripted",
+    srcs = ["scripted.do"],
+)
+
+run_binary(
+    name = "scripted_output",
+    outs = ["scripted_output.txt"],
+    args = [
+        "--output",
+        "$(execpath :scripted_output.txt)",
+    ],
+    tool = ":scripted",
+)
+
+write_file(
+    name = "scripted_expected",
+    out = "scripted_expected.txt",
+    content = [
+        "Do-Re-Mi-Fa-Sol.",
+        "",
+    ],
+    newline = "unix",
+)
+
+diff_test(
+    name = "scripted_diff_test",
+    file1 = ":scripted_expected.txt",
+    file2 = ":scripted_output.txt",
+)

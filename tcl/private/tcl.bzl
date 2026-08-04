@@ -13,8 +13,8 @@ _COMMON_ATTRS = {
         providers = [TclInfo],
     ),
     "srcs": attr.label_list(
-        doc = "The list of source (`.tcl`) files that are processed to create the target.",
-        allow_files = [".tcl"],
+        doc = "The list of source (`.tcl` or `.do`) files that are processed to create the target.",
+        allow_files = [".tcl", ".do"],
         mandatory = True,
         allow_empty = False,
     ),
@@ -172,7 +172,7 @@ def _tcl_library_impl(ctx):
         coverage_common.instrumented_files_info(
             ctx,
             dependency_attributes = ["deps"],
-            extensions = ["tcl"],
+            extensions = ["tcl", "do"],
             source_attributes = ["srcs"],
         ),
     ]
@@ -249,7 +249,7 @@ def _compute_main(ctx, srcs, main = None):
                     ctx.label,
                 ))
 
-            basename = src.basename[:-len(".tcl")]
+            basename = src.basename.rsplit(".", 1)[0]
             if basename == ctx.label.name:
                 main = src
 
@@ -405,7 +405,7 @@ def _tcl_binary_impl(ctx):
         coverage_common.instrumented_files_info(
             ctx,
             dependency_attributes = ["deps"],
-            extensions = ["tcl"],
+            extensions = ["tcl", "do"],
             source_attributes = ["srcs"],
         ),
         _create_run_environment_info(
@@ -419,7 +419,7 @@ def _tcl_binary_impl(ctx):
 tcl_binary = rule(
     doc = """\
 A `tcl_binary` is an executable Tcl program consisting of a collection of
-`.tcl` source files (possibly belonging to other `tcl_library` rules), a `*.runfiles`
+`.tcl` or `.do` source files (possibly belonging to other `tcl_library` rules), a `*.runfiles`
 directory tree containing all the code and data needed by the program at run-time,
 and a stub script that starts up the program with the correct initial environment
 and data.
