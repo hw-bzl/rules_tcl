@@ -203,12 +203,12 @@ load("@rules_tcl//tcl:defs.bzl", "tcl_library")
 tcl_library(<a href="#tcl_library-name">name</a>, <a href="#tcl_library-deps">deps</a>, <a href="#tcl_library-srcs">srcs</a>, <a href="#tcl_library-data">data</a>)
 </pre>
 <p>A Tcl library that can be depended upon by other Tcl targets.</p>
-<p>A <code>tcl_library</code> represents a Tcl package that can be imported using Tcl's <code>package require</code> command.
-The library must include a <code>pkgIndex.tcl</code> file in its <code>srcs</code> attribute, which defines the package
-metadata and how to load the package.</p>
-<p><strong>Important</strong>: The <code>pkgIndex.tcl</code> file must be included in the <code>srcs</code> attribute. This file is used
-by Tcl's package system to locate and load the package.</p>
-<p>Example:</p>
+<p>A <code>tcl_library</code> groups a set of <code>.tcl</code> or <code>.do</code> source files that can be consumed by other Tcl
+targets. If a <code>pkgIndex.tcl</code> file is included in <code>srcs</code>, its directory is added to the consumer's
+<code>auto_path</code> so the package can be loaded with Tcl's <code>package require</code> command. Libraries without a
+<code>pkgIndex.tcl</code> are still made available through runfiles and can be loaded directly with <code>source</code>
+(typically via the runfiles library's <code>rlocation</code>).</p>
+<p>Example with <code>package require</code>:</p>
 <pre><code class="language-python">load("@rules_tcl//tcl:defs.bzl", "tcl_library")
 
 tcl_library(
