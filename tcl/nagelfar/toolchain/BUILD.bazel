@@ -2,6 +2,10 @@ load("//tcl/nagelfar:nagelfar_toolchain.bzl", "NAGELFAR_TOOLCHAIN_TYPE", "nagelf
 
 nagelfar_toolchain(
     name = "nagelfar_toolchain",
+    extra_args = [
+        "-Wunusedvar",
+        "-strictappend",
+    ],
     nagelfar = "@nagelfar//:nagelfar",
     syntaxbuild = "@nagelfar//:syntaxbuild",
     syntaxdb = ["@nagelfar//:syntaxdb"],

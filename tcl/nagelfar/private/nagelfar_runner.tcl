@@ -47,11 +47,11 @@ proc rloc {value use_runfiles r} {
 
 proc parse_args {argv use_runfiles r} {
     set srcs {}
-    set dep_srcs {}
     set nagelfar_path ""
     set syntaxdbs {}
     set extra_args {}
     set header_output ""
+    set skip_check 0
 
     set argv [split_equals $argv]
     set n [llength $argv]
@@ -61,16 +61,16 @@ proc parse_args {argv use_runfiles r} {
         set next [expr {$i + 1 < $n ? [lindex $argv [expr {$i + 1}]] : ""}]
         switch -- $arg {
             "--src" {lappend srcs [rloc $next $use_runfiles $r]; incr i}
-            "--dep-src" {lappend dep_srcs [rloc $next $use_runfiles $r]; incr i}
             "--nagelfar" {set nagelfar_path [rloc $next $use_runfiles $r]; incr i}
             "--syntaxdb" {lappend syntaxdbs [rloc $next $use_runfiles $r]; incr i}
             "--nagelfar-arg" {lappend extra_args $next; incr i}
             "--header-output" {set header_output $next; incr i}
+            "--skip-check" {set skip_check 1}
         }
         incr i
     }
 
-    return [list $srcs $dep_srcs $nagelfar_path $syntaxdbs $extra_args $header_output]
+    return [list $srcs $nagelfar_path $syntaxdbs $extra_args $header_output $skip_check]
 }
 
 # Run `nagelfar` under the ambient tclsh, returning
@@ -94,9 +94,9 @@ proc flush_stream {label str} {
 }
 
 # nagelfar prints "Could not find file 'X'" and keeps going with exit 0
-# when an input file is absent. Guard against that ourselves: any src or
-# dep-src the runner was told about must exist on disk before we hand it
-# to nagelfar. Returns the list of missing paths (empty when all good).
+# when an input file is absent. Guard against that ourselves: every src
+# the runner was told about must exist on disk before we hand it to
+# nagelfar. Returns the list of missing paths (empty when all good).
 proc missing_paths {paths} {
     set missing {}
     foreach p $paths {
@@ -132,7 +132,7 @@ foreach env_key {RULES_TCL_NAGELFAR_ARGS_FILE RULES_TCL_LINT_ARGS_FILE} {
 }
 
 lassign [parse_args $effective_argv $use_runfiles $r] \
-    srcs dep_srcs nagelfar_path syntaxdbs extra_args header_output
+    srcs nagelfar_path syntaxdbs extra_args header_output skip_check
 
 if {$nagelfar_path eq ""} {
     puts stderr "Error: --nagelfar is required"
@@ -167,7 +167,7 @@ set tclsh_path [info nameofexecutable]
 
 # nagelfar treats missing files as warnings (stdout, exit 0), so verify
 # every input exists up front instead of trusting the exit code below.
-set missing [missing_paths [concat $srcs $dep_srcs]]
+set missing [missing_paths $srcs]
 if {[llength $missing] > 0} {
     puts stderr "Error: nagelfar inputs missing:"
     foreach p $missing {puts stderr "  $p"}
@@ -186,43 +186,30 @@ if {$header_exit != 0} {
     exit 1
 }
 
+# `--skip-check` targets (e.g. `no_lint`-tagged) still contribute a
+# syntaxdb to downstream lint runs — that's the whole reason we did the
+# header pass — but we don't want to fail on their own findings.
+if {$skip_check} {
+    exit 0
+}
+
 # Check pass.
 set check_args [list -exitcode -H]
 foreach db $syntaxdbs {lappend check_args -s $db}
-lappend check_args {*}$extra_args {*}$dep_srcs {*}$srcs
+lappend check_args {*}$extra_args {*}$srcs
 
 lassign [run_nagelfar $tclsh_path $nagelfar_path $check_args] \
     check_exit check_output_str
 
 if {$streaming} {flush_stream "-check" $check_output_str}
 
-# Filter check-pass output to findings on target `--src` files (not
-# `--dep-src` ones). Dep findings are informational; the target is what
-# this action owns.
-set srcs_set [dict create]
-foreach src $srcs {
-    dict set srcs_set $src 1
-}
-
-set target_findings {}
-set current_file_is_target 0
-foreach line [split $check_output_str "\n"] {
-    if {[string match "Checking file *" $line]} {
-        set current_file [string range $line 14 end]
-        set current_file_is_target [dict exists $srcs_set $current_file]
-    } elseif {$current_file_is_target && $line ne ""} {
-        lappend target_findings $line
-    }
-}
-
-if {[llength $target_findings] > 0} {
+# Every file passed to nagelfar is a target src, so any non-zero exit is
+# a target failure. No line-level filtering needed.
+if {$check_exit != 0} {
     if {!$streaming} {
-        # Build action failing: dump the full log so users see everything
-        # nagelfar produced across both passes. The findings are in it.
+        # Build action failing: dump both passes so users see everything.
         flush_stream "-header" $header_output_str
         flush_stream "-check" $check_output_str
     }
-    # Streaming mode has already surfaced every line live; nothing to
-    # re-print. Fail so the aspect/test result matches nagelfar's verdict.
     exit 1
 }
