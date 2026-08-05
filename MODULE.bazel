@@ -10,7 +10,7 @@ bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_batch", version = "0.0.1")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "rules_venv", version = "0.23.0")
-bazel_dep(name = "rules_req_compile", version = "1.1.0")
+bazel_dep(name = "rules_req_compile", version = "1.1.3")
 bazel_dep(name = "tcl_lang", version = "9.0.2.bcr.1")
 
 tcllib_ext = use_extension("//tcl:extensions.bzl", "tcllib")

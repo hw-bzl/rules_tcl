@@ -1,5 +1,6 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("//tcl:tcl_test.bzl", "tcl_test")
+load("//tcl/nagelfar:tcl_nagelfar_test.bzl", "tcl_nagelfar_test")
 
 write_file(
     name = "generated_file",
@@ -20,4 +21,15 @@ tcl_test(
         "GENERATED_DATA_RLOCATIONPATH": "$(rlocationpath :generated_data.txt)",
     },
     deps = ["//tcl/runfiles"],
+)
+
+tcl_test(
+    name = "runfiles_unit_test",
+    srcs = ["runfiles_unit_test.tcl"],
+    deps = ["//tcl/runfiles"],
+)
+
+tcl_nagelfar_test(
+    name = "runfiles_nagelfar",
+    target = "//tcl/runfiles",
 )
