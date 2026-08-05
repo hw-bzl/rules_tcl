@@ -1,8 +1,13 @@
-load("//tcl:tcl_toolchain.bzl", "TOOLCHAIN_TYPE", "tcl_toolchain")
+load("//tcl:tcl_toolchain.bzl", "TOOLCHAIN_TYPE", "tcl_toolchain", "tclcore_filegroup")
+
+tclcore_filegroup(
+    name = "tclcore",
+    srcs = ["@tcl_lang//:tcl_core"],
+)
 
 tcl_toolchain(
     name = "tcl_toolchain",
-    tclcore = "@tcl_lang//:tcl_core",
+    tclcore = ":tclcore",
     tcllib = "@tcllib",
     tclsh = "@tcl_lang//:tclsh",
     visibility = ["//visibility:public"],

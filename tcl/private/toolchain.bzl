@@ -1,5 +1,7 @@
 """tcl toolchain rules"""
 
+load(":providers.bzl", "TclCoreInfo", "TclLibInfo")
+
 TOOLCHAIN_TYPE = str(Label("//tcl:toolchain_type"))
 
 _TEMPLATE_SUFFIXES = ["tpl", "template", "tmpl", "in"]
@@ -26,42 +28,11 @@ def _derive_wrapper_extension(template_file):
         return ""
     return "." + ".".join(parts)
 
-def _rlocationpath(file, workspace_name):
+def rlocationpath(file, workspace_name):
     if file.short_path.startswith("../"):
         return file.short_path[len("../"):]
 
     return "{}/{}".format(workspace_name, file.short_path)
-
-def _parse_tclcore(label, workspace_name, target):
-    for file in target[DefaultInfo].files.to_list():
-        if file.basename == "init.tcl":
-            include = _rlocationpath(file, workspace_name)[:-len("/init.tcl")]
-            return struct(
-                include = include,
-                init_tcl = file,
-            )
-
-    fail("Failed to parse `tclcore` from `{}` for `{}`".format(target.label, label))
-
-def _parse_tcllib(label, workspace_name, target):
-    top_pkg_index = None
-    for file in target[DefaultInfo].files.to_list():
-        if file.basename == "pkgIndex.tcl":
-            if not top_pkg_index:
-                top_pkg_index = file
-                continue
-
-            if len(top_pkg_index.short_path) > len(file.short_path):
-                top_pkg_index = file
-
-    if top_pkg_index:
-        include = _rlocationpath(top_pkg_index, workspace_name)[:-len("/pkgIndex.tcl")]
-        return struct(
-            pkg_index = top_pkg_index,
-            include = include,
-        )
-
-    fail("Failed to parse `tcllib` from `{}` for `{}`".format(target.label, label))
 
 def _tcl_toolchain_impl(ctx):
     make_variable_info = platform_common.TemplateVariableInfo({
@@ -83,11 +54,11 @@ def _tcl_toolchain_impl(ctx):
     init_tcl = None
     tcllib_pkg_index = None
     if ctx.attr.tclcore:
-        tcl_core_info = _parse_tclcore(ctx.label, ctx.workspace_name, ctx.attr.tclcore)
-        includes.append(tcl_core_info.include)
-        init_tcl = tcl_core_info.init_tcl
+        tclcore_info = ctx.attr.tclcore[TclCoreInfo]
+        includes.append(tclcore_info.include)
+        init_tcl = tclcore_info.init_tcl
     if ctx.attr.tcllib:
-        tcllib_info = _parse_tcllib(ctx.label, ctx.workspace_name, ctx.attr.tcllib)
+        tcllib_info = ctx.attr.tcllib[TclLibInfo]
         includes.append(tcllib_info.include)
         tcllib_pkg_index = tcllib_info.pkg_index
 
@@ -111,7 +82,7 @@ def _tcl_toolchain_impl(ctx):
             tcllib_pkg_index = tcllib_pkg_index,
             all_files = all_files,
             _wrapper_template = ctx.file.wrapper_template,
-            _wrapper_extension = ctx.attr.wrapper_extension or _derive_wrapper_extension(ctx.file.wrapper_template),
+            _wrapper_extension = _derive_wrapper_extension(ctx.file.wrapper_template),
             _wrapper_entrypoint = wrapper_entrypoint,
             _wrapper_runfiles = wrapper_runfiles,
         ),
@@ -133,16 +104,23 @@ register_toolchains("@rules_tcl//tcl/toolchain")
 ```
 
 If you need a custom toolchain (e.g. a different Tcl version, or a wrapper that dispatches
-into a different host interpreter), define your own:
+into a different host interpreter), define your own. `tclcore` and `tcllib` are matched by
+provider — pass a target that returns `TclCoreInfo` / `TclLibInfo`, typically produced by
+the sibling `tclcore_filegroup` and `tcllib_filegroup` rules:
 
 ```python
-load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain")
+load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain", "tclcore_filegroup")
+
+tclcore_filegroup(
+    name = "my_tclcore",
+    srcs = ["@my_tcl//:tclcore_files"],
+)
 
 tcl_toolchain(
     name = "my_tcl_toolchain",
     tclsh = "@my_tcl//:tclsh",
-    tclcore = "@my_tcl//:tclcore",  # optional
-    tcllib = "@tcllib//:tcllib",    # optional
+    tclcore = ":my_tclcore",     # optional; must provide TclCoreInfo
+    tcllib = "@tcllib",          # optional; must provide TclLibInfo
     wrapper_template = "//path/to:my_wrapper_bundle",
     wrapper_entrypoint = "//path/to:my_entrypoint.tcl",  # optional
 )
@@ -171,11 +149,9 @@ The extension appended to the produced wrapper is derived from the template's fi
 splitting the basename on the first `.` and dropping any trailing parts that are known
 template suffixes (`.tpl`, `.template`, `.tmpl`, `.in`); whatever remains is the extension.
 E.g. `my_wrapper.sh.tpl` yields `.sh`, `my_wrapper.bat.template` yields `.bat`,
-`my_wrapper.vhook.tcl.tpl` yields `.vhook.tcl`.
-
-Since the split happens at the FIRST dot, templates whose basename contains a dot in the
-name portion (e.g. `com.foo.wrapper.sh.tpl` intending `.sh`) must set the
-`wrapper_extension` attr explicitly to override the derivation.
+`my_wrapper.vhook.tcl.tpl` yields `.vhook.tcl`. Since the split happens at the FIRST dot,
+templates whose basename contains a dot in the name portion (e.g. `com.foo.wrapper.sh.tpl`
+intending `.sh`) should be renamed so the first `.` marks the extension boundary.
 
 ## `ToolchainInfo` contract
 
@@ -229,10 +205,12 @@ is available; alternate wrappers can consume, ignore, or extend it as they see f
     implementation = _tcl_toolchain_impl,
     attrs = {
         "tclcore": attr.label(
-            doc = "A label to the `tclcore` files.",
+            doc = "A target providing `TclCoreInfo` (typically a `tclcore_filegroup`).",
+            providers = [TclCoreInfo],
         ),
         "tcllib": attr.label(
-            doc = "A label to the `tcllib` files.",
+            doc = "A target providing `TclLibInfo` (typically a `tcllib_filegroup`).",
+            providers = [TclLibInfo],
         ),
         "tclsh": attr.label(
             doc = "The path to a `tclsh` binary. Runtime dependency of every produced `tcl_binary` / `tcl_test`.",
@@ -243,19 +221,6 @@ is available; alternate wrappers can consume, ignore, or extend it as they see f
         "wrapper_entrypoint": attr.label(
             doc = "Optional `.tcl` file added to the binary's runfiles and referenced via the `{entrypoint}` template substitution. The target's `default_runfiles` are also merged in. Leave unset when the wrapper doesn't need a bootstrap.",
             allow_single_file = True,
-        ),
-        "wrapper_extension": attr.string(
-            doc = ("Extension appended to the produced wrapper (e.g. `.sh`, " +
-                   "`.bat`, `.vhook.tcl`). When empty (default), it's derived " +
-                   "from `wrapper_template`'s filename by splitting the " +
-                   "basename on the first `.` and dropping any trailing parts " +
-                   "that are known template suffixes " +
-                   "(`.tpl`/`.template`/`.tmpl`/`.in`); whatever remains is " +
-                   "the extension. The split happens at the first dot, so " +
-                   "templates whose basename contains a dot in the name " +
-                   "portion (e.g. `com.foo.wrapper.sh.tpl` intending `.sh`) " +
-                   "must set this attr explicitly."),
-            default = "",
         ),
         "wrapper_template": attr.label(
             doc = "Template expanded per `tcl_binary` / `tcl_test`. The target's `default_runfiles` are merged into every produced binary, so a `filegroup` wrapping the template can list helper libraries under `data` (e.g. `@bazel_tools//tools/bash/runfiles`). See the wrapper template contract in the rule docs for the supported substitutions.",

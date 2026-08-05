@@ -1,5 +1,5 @@
 """Bzlmod extensions for rules_tcl."""
 
-load("//tcl/tcllib:extensions.bzl", _tcllib = "tcllib")
+load("//tcl/private:tcllib_extension.bzl", _tcllib = "tcllib")
 
 tcllib = _tcllib

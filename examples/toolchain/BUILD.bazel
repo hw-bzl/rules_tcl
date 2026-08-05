@@ -1,8 +1,13 @@
-load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain")
+load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain", "tclcore_filegroup")
+
+tclcore_filegroup(
+    name = "tclcore",
+    srcs = ["@tcl_lang//:tcl_core"],
+)
 
 tcl_toolchain(
     name = "tcl_toolchain",
-    tclcore = "@tcl_lang//:tcl_core",
+    tclcore = ":tclcore",
     tcllib = "@tcllib",
     tclsh = "@tcl_lang//:tclsh",
     wrapper_entrypoint = "@rules_tcl//tcl/private:entrypoint.tcl",

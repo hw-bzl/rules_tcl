@@ -59,7 +59,7 @@ def _repo_name(version):
     return "tcllib_" + version.replace(".", "_")
 
 _ARCHIVE_BUILD_FILE = """\
-load("@rules_tcl//tcl/tcllib:tcllib_filegroup.bzl", "tcllib_filegroup")
+load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcllib_filegroup")
 
 tcllib_filegroup(
     name = "tcllib",

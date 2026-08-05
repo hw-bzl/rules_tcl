@@ -27,15 +27,8 @@ bazel_dep(name = "rules_tcl", version = "{version}")
 bazel_dep(name = "tcl_lang", version = "{tcl_lang_version}")
 bazel_dep(name = "bazel_skylib", version = "{bazel_skylib_version}")
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-http_archive(
-    name = "tcllib",
-    build_file = "@rules_tcl//tcl/private:BUILD.tcllib.bazel",
-    integrity = "sha256-ZCwsZ5yQF6tv3tAzJOTOm19Ckkc7YlIOgqrOu2PAziA=",
-    strip_prefix = "tcllib-2.0",
-    urls = ["https://core.tcl-lang.org/tcllib/uv/tcllib-2.0.tar.xz"],
-)
+tcllib_ext = use_extension("@rules_tcl//tcl:extensions.bzl", "tcllib")
+use_repo(tcllib_ext, "tcllib")
 
 register_toolchains(
     "//toolchain",
@@ -45,12 +38,17 @@ register_toolchains(
 Then in `//toolchain/BUILD.bazel`:
 
 ```python
-load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain")
+load("@rules_tcl//tcl:tcl_toolchain.bzl", "tcl_toolchain", "tclcore_filegroup")
+
+tclcore_filegroup(
+    name = "tclcore",
+    srcs = ["@tcl_lang//:tcl_core"],
+)
 
 tcl_toolchain(
     name = "tcl_toolchain",
     tclsh = "@tcl_lang//:tclsh",
-    tclcore = "@tcl_lang//:tcl_core",
+    tclcore = ":tclcore",
     tcllib = "@tcllib",
     wrapper_template = "@rules_tcl//tcl/private:binary_wrapper.tpl",
     wrapper_entrypoint = "@rules_tcl//tcl/private:entrypoint.tcl",
