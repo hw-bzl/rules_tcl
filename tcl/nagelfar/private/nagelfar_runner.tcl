@@ -82,11 +82,29 @@ proc run_nagelfar {tclsh nagelfar_path cmd_args} {
 }
 
 # Flush a captured pass to stderr, appending a trailing newline if the
-# output didn't already end with one. No-op when `str` is empty.
-proc flush_stream {str} {
+# output didn't already end with one. No-op when `str` is empty. `label`
+# is printed as a banner above the output so consumers can tell the two
+# nagelfar passes apart instead of reading duplicate "Checking file"
+# lines as a bug.
+proc flush_stream {label str} {
     if {$str eq ""} {return}
+    puts stderr "===== nagelfar $label ====="
     puts -nonewline stderr $str
     if {[string index $str end] ne "\n"} {puts stderr ""}
+}
+
+# nagelfar prints "Could not find file 'X'" and keeps going with exit 0
+# when an input file is absent. Guard against that ourselves: any src or
+# dep-src the runner was told about must exist on disk before we hand it
+# to nagelfar. Returns the list of missing paths (empty when all good).
+proc missing_paths {paths} {
+    set missing {}
+    foreach p $paths {
+        if {![file exists $p]} {
+            lappend missing $p
+        }
+    }
+    return $missing
 }
 
 set use_runfiles 0
@@ -147,14 +165,23 @@ if {$header_output eq ""} {
 # the wrapper against that same interpreter's tclcore.
 set tclsh_path [info nameofexecutable]
 
+# nagelfar treats missing files as warnings (stdout, exit 0), so verify
+# every input exists up front instead of trusting the exit code below.
+set missing [missing_paths [concat $srcs $dep_srcs]]
+if {[llength $missing] > 0} {
+    puts stderr "Error: nagelfar inputs missing:"
+    foreach p $missing {puts stderr "  $p"}
+    exit 1
+}
+
 # Header pass: aggregate every target src into one syntaxdb.
 file mkdir [file dirname $header_output]
 lassign [run_nagelfar $tclsh_path $nagelfar_path [list -header $header_output {*}$srcs]] \
     header_exit header_output_str
 
-if {$streaming} {flush_stream $header_output_str}
+if {$streaming} {flush_stream "-header" $header_output_str}
 if {$header_exit != 0} {
-    if {!$streaming} {flush_stream $header_output_str}
+    if {!$streaming} {flush_stream "-header" $header_output_str}
     puts stderr "Error: nagelfar -header failed"
     exit 1
 }
@@ -167,7 +194,7 @@ lappend check_args {*}$extra_args {*}$dep_srcs {*}$srcs
 lassign [run_nagelfar $tclsh_path $nagelfar_path $check_args] \
     check_exit check_output_str
 
-if {$streaming} {flush_stream $check_output_str}
+if {$streaming} {flush_stream "-check" $check_output_str}
 
 # Filter check-pass output to findings on target `--src` files (not
 # `--dep-src` ones). Dep findings are informational; the target is what
@@ -192,8 +219,8 @@ if {[llength $target_findings] > 0} {
     if {!$streaming} {
         # Build action failing: dump the full log so users see everything
         # nagelfar produced across both passes. The findings are in it.
-        flush_stream $header_output_str
-        flush_stream $check_output_str
+        flush_stream "-header" $header_output_str
+        flush_stream "-check" $check_output_str
     }
     # Streaming mode has already surfaced every line live; nothing to
     # re-print. Fail so the aspect/test result matches nagelfar's verdict.
