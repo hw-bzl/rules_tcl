@@ -9,6 +9,17 @@ tcl_binary(
     deps = ["//tcl/runfiles"],
 )
 
+# Exec-cfg helper invoked by `nagelfar_toolchain` to snapshot tcllib into a
+# Nagelfar syntax database. Runs under the standard `tcl_binary` wrapper, so
+# the ambient tcl_toolchain's tclsh + tcllib are already staged on
+# `auto_path` — no direct attrs needed here.
+tcl_binary(
+    name = "syntaxbuild_driver",
+    srcs = ["tcllib_syntaxbuild_driver.tcl"],
+    tags = ["no_nagelfar"],
+    visibility = ["//tcl/nagelfar:__pkg__"],
+)
+
 bzl_library(
     name = "bzl_lib",
     srcs = glob(["*.bzl"]),

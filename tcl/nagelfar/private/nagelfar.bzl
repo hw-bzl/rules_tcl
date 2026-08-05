@@ -1,8 +1,16 @@
 """Nagelfar lint rules"""
 
+load("//tcl/nagelfar:nagelfar_syntaxdb.bzl", "NagelfarSyntaxdbInfo")
 load("//tcl/nagelfar:nagelfar_toolchain.bzl", "NAGELFAR_TOOLCHAIN_TYPE")
 load("//tcl/private:providers.bzl", "TclInfo", "find_srcs")
 load("//tcl/private:toolchain.bzl", "TOOLCHAIN_TYPE")
+
+_NagelfarSyntaxdbCollectionInfo = provider(
+    doc = "Internal: transitive syntaxdb files collected via `deps` and `data`.",
+    fields = {
+        "syntaxdbs": "Depset[File]: Syntax database files contributed by a target and its transitive graph.",
+    },
+)
 
 def _rlocationpath(file, workspace_name):
     if file.short_path.startswith("../"):
@@ -25,6 +33,24 @@ def _collect_dep_srcs(ctx):
                         dep_srcs.append(src)
     return dep_srcs
 
+def _nagelfar_syntaxdb_collector_aspect_impl(target, ctx):
+    parts = []
+    if NagelfarSyntaxdbInfo in target:
+        parts.append(target[NagelfarSyntaxdbInfo].files)
+    for attr_name in ("deps", "data"):
+        if hasattr(ctx.rule.attr, attr_name):
+            for dep in getattr(ctx.rule.attr, attr_name):
+                if _NagelfarSyntaxdbCollectionInfo in dep:
+                    parts.append(dep[_NagelfarSyntaxdbCollectionInfo].syntaxdbs)
+    return [_NagelfarSyntaxdbCollectionInfo(syntaxdbs = depset(transitive = parts))]
+
+_nagelfar_syntaxdb_collector_aspect = aspect(
+    doc = "Internal: walks `deps` and `data` to collect `NagelfarSyntaxdbInfo` files into a single depset.",
+    implementation = _nagelfar_syntaxdb_collector_aspect_impl,
+    attr_aspects = ["deps", "data"],
+    provides = [_NagelfarSyntaxdbCollectionInfo],
+)
+
 def _tcl_nagelfar_aspect_impl(target, ctx):
     srcs = find_srcs(target)
     if not srcs:
@@ -46,6 +72,7 @@ def _tcl_nagelfar_aspect_impl(target, ctx):
         return []
 
     dep_srcs = _collect_dep_srcs(ctx)
+    graph_syntaxdbs = target[_NagelfarSyntaxdbCollectionInfo].syntaxdbs
 
     output = ctx.actions.declare_file("{}.nagelfar.ok".format(target.label.name))
 
@@ -59,7 +86,8 @@ def _tcl_nagelfar_aspect_impl(target, ctx):
 
     args.add("--nagelfar", nagelfar_toolchain.nagelfar)
     args.add_all(nagelfar_toolchain.syntaxdb, format_each = "--syntaxdb=%s")
-    args.add("--tcllib-pkg-index", toolchain.tcllib_pkg_index)
+    args.add_all(graph_syntaxdbs, format_each = "--syntaxdb=%s")
+    args.add_all(nagelfar_toolchain.extra_args, format_each = "--nagelfar-arg=%s")
 
     ctx.actions.run(
         mnemonic = "TclNagelfar",
@@ -67,7 +95,7 @@ def _tcl_nagelfar_aspect_impl(target, ctx):
         arguments = [args],
         inputs = depset(
             lint_srcs + dep_srcs + [nagelfar_toolchain.nagelfar] + nagelfar_toolchain.syntaxdb,
-            transitive = [toolchain.all_files],
+            transitive = [toolchain.all_files, graph_syntaxdbs],
         ),
         tools = [ctx.executable._runner],
         progress_message = "TclNagelfar %{label}",
@@ -83,7 +111,10 @@ tcl_nagelfar_aspect = aspect(
 An aspect for performing Nagelfar static analysis on Tcl targets.
 
 The `tcl_nagelfar_aspect` applies [Nagelfar](https://nagelfar.sourceforge.net/)
-checks to all Tcl targets in the dependency graph.
+checks to all Tcl targets in the dependency graph. It also traverses `deps`
+and `data` (via a required collector aspect) to gather any `nagelfar_syntaxdb`
+targets attached to the graph, and forwards their files to Nagelfar alongside
+the toolchain-shipped databases.
 
 **Usage:**
 
@@ -109,6 +140,7 @@ To skip Nagelfar for specific targets, add one of these tags:
 - `nolint`
 """,
     implementation = _tcl_nagelfar_aspect_impl,
+    requires = [_nagelfar_syntaxdb_collector_aspect],
     attrs = {
         "_runner": attr.label(
             cfg = "exec",
@@ -125,6 +157,8 @@ To skip Nagelfar for specific targets, add one of these tags:
 
 def _tcl_nagelfar_test_impl(ctx):
     info = ctx.attr.target[TclInfo]
+    graph_syntaxdbs = ctx.attr.target[_NagelfarSyntaxdbCollectionInfo].syntaxdbs.to_list()
+
     srcs = [
         src
         for src in info.srcs.to_list()
@@ -140,14 +174,17 @@ def _tcl_nagelfar_test_impl(ctx):
     toolchain = ctx.toolchains[TOOLCHAIN_TYPE]
     nagelfar_toolchain = ctx.toolchains[NAGELFAR_TOOLCHAIN_TYPE]
 
+    all_syntaxdbs = nagelfar_toolchain.syntaxdb + graph_syntaxdbs
+
     args = ctx.actions.args()
     args.set_param_file_format("multiline")
     args.add("--nagelfar", _rlocationpath(nagelfar_toolchain.nagelfar, ctx.workspace_name))
-    for db in nagelfar_toolchain.syntaxdb:
+    for db in all_syntaxdbs:
         args.add("--syntaxdb", _rlocationpath(db, ctx.workspace_name))
+    for extra in nagelfar_toolchain.extra_args:
+        args.add("--nagelfar-arg", extra)
     for dep_src in dep_srcs:
         args.add("--dep-src", _rlocationpath(dep_src, ctx.workspace_name))
-    args.add("--tcllib-pkg-index", _rlocationpath(toolchain.tcllib_pkg_index, ctx.workspace_name))
     args.add_all([
         "--src={}".format(_rlocationpath(src, ctx.workspace_name))
         for src in srcs
@@ -167,7 +204,7 @@ def _tcl_nagelfar_test_impl(ctx):
         is_executable = True,
     )
 
-    nagelfar_files = [nagelfar_toolchain.nagelfar] + nagelfar_toolchain.syntaxdb
+    nagelfar_files = [nagelfar_toolchain.nagelfar] + all_syntaxdbs
 
     return [
         DefaultInfo(
@@ -210,6 +247,7 @@ tcl_nagelfar_test(
     attrs = {
         "target": attr.label(
             doc = "The Tcl target to perform Nagelfar analysis on.",
+            aspects = [_nagelfar_syntaxdb_collector_aspect],
             providers = [TclInfo],
             mandatory = True,
         ),

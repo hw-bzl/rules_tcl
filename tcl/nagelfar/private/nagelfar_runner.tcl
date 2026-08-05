@@ -8,147 +8,13 @@
 
 package require runfiles
 
-proc find_tcllib_module_files {tcllib_modules_dir pkg} {
-    set pkg_dir [file join $tcllib_modules_dir $pkg]
-    if {[file isdirectory $pkg_dir]} {
-        set files {}
-        foreach f [glob -nocomplain -directory $pkg_dir *.tcl] {
-            if {[file tail $f] ne "pkgIndex.tcl"} {
-                lappend files $f
-            }
-        }
-        return $files
-    }
-
-    foreach idx [glob -nocomplain \
-        -directory $tcllib_modules_dir */pkgIndex.tcl] {
-        set fh [open $idx r]
-        set idx_content [read $fh]
-        close $fh
-        if {[string match "*ifneeded $pkg *" $idx_content]} {
-            set mod_dir [file dirname $idx]
-            set files {}
-            foreach f [glob -nocomplain \
-                -directory $mod_dir *.tcl] {
-                if {[file tail $f] ne "pkgIndex.tcl"} {
-                    lappend files $f
-                }
-            }
-            return $files
-        }
-    }
-    return {}
-}
-
-proc extract_commands_from_files {files} {
-    set commands {}
-    foreach f $files {
-        set fh [open $f r]
-        set content [read $fh]
-        close $fh
-
-        set ns ""
-        foreach line [split $content "\n"] {
-            if {
-                [regexp {namespace\s+eval\s+(::?\S+)} \
-                    $line -> ns_name]
-            } {
-                set ns $ns_name
-            }
-            if {
-                [regexp {^\s*proc\s+(::[\w:]+)} \
-                    $line -> proc_name]
-            } {
-                if {$proc_name ni $commands} {
-                    lappend commands $proc_name
-                }
-            }
-            if {
-                [regexp \
-                    {interp\s+alias\s+\{\}\s+(::[\w:]+)} \
-                    $line -> alias_name]
-            } {
-                if {$alias_name ni $commands} {
-                    lappend commands $alias_name
-                }
-            }
-            if {
-                $ns ne "" && [regexp \
-                    {namespace\s+export\s+(.*)} $line -> exports]
-            } {
-                set exports [string map {\\ ""} $exports]
-                foreach cmd $exports {
-                    set cmd [string trim $cmd]
-                    if {$cmd eq ""} {continue}
-                    set fqn "${ns}::${cmd}"
-                    if {$fqn ni $commands} {
-                        lappend commands $fqn
-                    }
-                }
-            }
-        }
-    }
-    return $commands
-}
-
-proc generate_tcllib_syntaxdb {srcs tcllib_modules_dir} {
-    set required_pkgs {}
-    foreach src $srcs {
-        set fh [open $src r]
-        set content [read $fh]
-        close $fh
-        foreach line [split $content "\n"] {
-            if {
-                [regexp \
-                    {^\s*package\s+require\s+(\S+)} \
-                    $line -> pkg]
-            } {
-                if {$pkg ne "Tcl" && $pkg ni $required_pkgs} {
-                    lappend required_pkgs $pkg
-                }
-            }
-        }
-    }
-
-    if {[llength $required_pkgs] == 0} {
-        return {}
-    }
-
-    set all_commands {}
-    foreach pkg $required_pkgs {
-        set files [find_tcllib_module_files \
-            $tcllib_modules_dir $pkg]
-        foreach cmd [extract_commands_from_files $files] {
-            if {$cmd ni $all_commands} {
-                lappend all_commands $cmd
-            }
-        }
-    }
-
-    if {[llength $all_commands] == 0} {
-        return {}
-    }
-
-    set db_lines {}
-    lappend db_lines \
-        "# Auto-generated tcllib syntax database"
-    foreach cmd $all_commands {
-        set cmd [regsub {^::} $cmd ""]
-        lappend db_lines \
-            "lappend ::knownCommands [list $cmd]"
-        lappend db_lines \
-            "set ::syntax([list $cmd]) {x*}"
-    }
-    return $db_lines
-}
-
 proc parse_args {argv use_runfiles r} {
     set srcs {}
     set dep_srcs {}
     set nagelfar_path ""
     set syntaxdbs {}
+    set extra_args {}
     set marker ""
-    set tcllib_pkg_index ""
 
     set i 0
     while {$i < [llength $argv]} {
@@ -204,29 +70,23 @@ proc parse_args {argv use_runfiles r} {
                 set val [runfiles::rlocation $r $val]
             }
             lappend syntaxdbs $val
+        } elseif {[string match "--nagelfar-arg=*" $arg]} {
+            lappend extra_args [string range $arg 15 end]
+        } elseif {$arg eq "--nagelfar-arg" && $i + 1 < [llength $argv]} {
+            incr i
+            lappend extra_args [lindex $argv $i]
         } elseif {[string match "--marker=*" $arg]} {
             set marker [string range $arg 9 end]
         } elseif {$arg eq "--marker" && $i + 1 < [llength $argv]} {
             incr i
             set marker [lindex $argv $i]
-        } elseif {[string match "--tcllib-pkg-index=*" $arg]} {
-            set tcllib_pkg_index [string range $arg 19 end]
-            if {$use_runfiles} {
-                set tcllib_pkg_index [runfiles::rlocation $r $tcllib_pkg_index]
-            }
-        } elseif {$arg eq "--tcllib-pkg-index" && $i + 1 < [llength $argv]} {
-            incr i
-            set tcllib_pkg_index [lindex $argv $i]
-            if {$use_runfiles} {
-                set tcllib_pkg_index [runfiles::rlocation $r $tcllib_pkg_index]
-            }
         }
 
         incr i
     }
 
     return [list $srcs $dep_srcs \
-        $nagelfar_path $syntaxdbs $marker $tcllib_pkg_index]
+        $nagelfar_path $syntaxdbs $extra_args $marker]
 }
 
 set use_runfiles 0
@@ -256,7 +116,7 @@ foreach env_key {RULES_TCL_NAGELFAR_ARGS_FILE RULES_TCL_LINT_ARGS_FILE} {
 set parsed [parse_args $effective_argv $use_runfiles $r]
 lassign $parsed \
     srcs dep_srcs \
-    nagelfar_path syntaxdbs marker tcllib_pkg_index
+    nagelfar_path syntaxdbs extra_args marker
 
 if {$nagelfar_path eq ""} {
     puts stderr "Error: --nagelfar is required"
@@ -273,22 +133,12 @@ if {[llength $srcs] == 0} {
 # the wrapper against that same interpreter's tclcore.
 set tclsh_path [info nameofexecutable]
 
-if {$tcllib_pkg_index ne ""} {
-    set tcllib_modules_dir [file dirname $tcllib_pkg_index]
-    set all_check_srcs [concat $dep_srcs $srcs]
-    set db_lines [generate_tcllib_syntaxdb \
-        $all_check_srcs $tcllib_modules_dir]
-    if {[llength $db_lines] > 0} {
-        set db_fh [file tempfile db_path .syntaxdb.tcl]
-        puts $db_fh [join $db_lines "\n"]
-        close $db_fh
-        lappend syntaxdbs $db_path
-    }
-}
-
 set cmd [list $tclsh_path $nagelfar_path -exitcode -H]
 foreach db $syntaxdbs {
     lappend cmd -s $db
+}
+foreach extra $extra_args {
+    lappend cmd $extra
 }
 foreach dep $dep_srcs {
     lappend cmd $dep

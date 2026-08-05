@@ -1,0 +1,16 @@
+load("//tcl/nagelfar:nagelfar_toolchain.bzl", "NAGELFAR_TOOLCHAIN_TYPE", "nagelfar_toolchain")
+
+nagelfar_toolchain(
+    name = "nagelfar_toolchain",
+    nagelfar = "@nagelfar//:nagelfar",
+    syntaxbuild = "@nagelfar//:syntaxbuild",
+    syntaxdb = ["@nagelfar//:syntaxdb"],
+    visibility = ["//visibility:public"],
+)
+
+toolchain(
+    name = "toolchain",
+    toolchain = ":nagelfar_toolchain",
+    toolchain_type = NAGELFAR_TOOLCHAIN_TYPE,
+    visibility = ["//visibility:public"],
+)

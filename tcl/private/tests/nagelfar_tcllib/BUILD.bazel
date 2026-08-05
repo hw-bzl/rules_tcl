@@ -1,0 +1,15 @@
+load("//tcl:tcl_library.bzl", "tcl_library")
+load("//tcl/nagelfar:tcl_nagelfar_test.bzl", "tcl_nagelfar_test")
+
+tcl_library(
+    name = "uses_tcllib",
+    srcs = ["uses_tcllib.tcl"],
+)
+
+# Verifies that the toolchain-attached tcllib syntaxdb reaches the nagelfar
+# aspect: `struct::list reverse` would otherwise be flagged as an unknown
+# command since the target has no source dep on tcllib.
+tcl_nagelfar_test(
+    name = "uses_tcllib_nagelfar",
+    target = ":uses_tcllib",
+)

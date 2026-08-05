@@ -1,0 +1,30 @@
+load("//tcl:tcl_library.bzl", "tcl_library")
+load("//tcl/nagelfar:nagelfar_syntaxdb.bzl", "nagelfar_syntaxdb")
+load("//tcl/nagelfar:tcl_nagelfar_test.bzl", "tcl_nagelfar_test")
+
+nagelfar_syntaxdb(
+    name = "extern_syntaxdb",
+    srcs = ["extern.syntaxdb.tcl"],
+)
+
+tcl_library(
+    name = "uses_extern",
+    srcs = ["uses_extern.tcl"],
+    data = [":extern_syntaxdb"],
+)
+
+tcl_nagelfar_test(
+    name = "uses_extern_nagelfar",
+    target = ":uses_extern",
+)
+
+tcl_library(
+    name = "transitive_user",
+    srcs = ["transitive_user.tcl"],
+    deps = [":uses_extern"],
+)
+
+tcl_nagelfar_test(
+    name = "transitive_user_nagelfar",
+    target = ":transitive_user",
+)

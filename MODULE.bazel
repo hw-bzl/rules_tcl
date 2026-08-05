@@ -33,11 +33,10 @@ register_toolchains(
 )
 
 nagelfar = use_extension("//tcl/nagelfar:extensions.bzl", "nagelfar")
-nagelfar.toolchain()
-use_repo(nagelfar, "nagelfar_toolchains")
+use_repo(nagelfar, "nagelfar")
 
 register_toolchains(
-    "@nagelfar_toolchains//:all",
+    "//tcl/nagelfar/toolchain",
 )
 
 tclint_ext = use_extension("//tcl/tclint:extensions.bzl", "tclint")
