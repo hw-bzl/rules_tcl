@@ -74,12 +74,12 @@ def _tcl_nagelfar_aspect_impl(target, ctx):
     dep_srcs = _collect_dep_srcs(ctx)
     graph_syntaxdbs = target[_NagelfarSyntaxdbCollectionInfo].syntaxdbs
 
-    output = ctx.actions.declare_file("{}.nagelfar.ok".format(target.label.name))
+    syntaxdb = ctx.actions.declare_file("{}.syntaxdb.tcl".format(target.label.name))
 
     args = ctx.actions.args()
     args.add_all(dep_srcs, format_each = "--dep-src=%s")
     args.add_all(lint_srcs, format_each = "--src=%s")
-    args.add("--marker", output)
+    args.add("--header-output", syntaxdb)
 
     toolchain = ctx.toolchains[TOOLCHAIN_TYPE]
     nagelfar_toolchain = ctx.toolchains[NAGELFAR_TOOLCHAIN_TYPE]
@@ -99,12 +99,13 @@ def _tcl_nagelfar_aspect_impl(target, ctx):
         ),
         tools = [ctx.executable._runner],
         progress_message = "TclNagelfar %{label}",
-        outputs = [output],
+        outputs = [syntaxdb],
     )
 
-    return [OutputGroupInfo(
-        tcl_nagelfar_checks = depset([output]),
-    )]
+    return [
+        NagelfarSyntaxdbInfo(files = depset([syntaxdb])),
+        OutputGroupInfo(tcl_nagelfar_checks = depset([syntaxdb])),
+    ]
 
 tcl_nagelfar_aspect = aspect(
     doc = """\
@@ -189,6 +190,8 @@ def _tcl_nagelfar_test_impl(ctx):
         "--src={}".format(_rlocationpath(src, ctx.workspace_name))
         for src in srcs
     ])
+    # `--header-output` intentionally omitted — the runner routes the
+    # syntaxdb into $TEST_UNDECLARED_OUTPUTS_DIR at test time.
 
     args_file = ctx.actions.declare_file("{}.args.txt".format(ctx.label.name))
     ctx.actions.write(
