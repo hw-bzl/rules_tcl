@@ -2,25 +2,29 @@
 
 TOOLCHAIN_TYPE = str(Label("//tcl:toolchain_type"))
 
-_TEMPLATE_SUFFIXES = [".tpl", ".template", ".tmpl", ".in"]
+_TEMPLATE_SUFFIXES = ["tpl", "template", "tmpl", "in"]
 
 def _derive_wrapper_extension(template_file):
     """Extension for the wrapper produced from `template_file`.
 
-    Strips a single known template suffix (`.tpl`, `.template`, `.tmpl`, `.in`)
-    from the template's basename and returns whatever extension remains. E.g.
-    `binary_wrapper.sh.tpl` -> `.sh`; `wrapper.bat.template` -> `.bat`;
-    `wrapper.sh` (no template suffix) -> `.sh`.
+    Splits the template's basename on the first `.` and drops any trailing
+    parts that are known template suffixes (`.tpl`, `.template`, `.tmpl`,
+    `.in`). Whatever remains is the extension. E.g. `binary_wrapper.sh.tpl`
+    -> `.sh`; `wrapper.bat.template` -> `.bat`; `wrapper.vhook.tcl.tpl` ->
+    `.vhook.tcl`; `wrapper.sh` -> `.sh`.
     """
     name = template_file.basename
-    for suffix in _TEMPLATE_SUFFIXES:
-        if name.endswith(suffix):
-            name = name[:-len(suffix)]
-            break
-    dot = name.rfind(".")
+    dot = name.find(".")
     if dot == -1:
         return ""
-    return name[dot:]
+    parts = name[dot + 1:].split(".")
+    for _ in range(len(parts)):
+        if not parts or parts[-1] not in _TEMPLATE_SUFFIXES:
+            break
+        parts = parts[:-1]
+    if not parts:
+        return ""
+    return "." + ".".join(parts)
 
 def _rlocationpath(file, workspace_name):
     if file.short_path.startswith("../"):
@@ -107,7 +111,7 @@ def _tcl_toolchain_impl(ctx):
             tcllib_pkg_index = tcllib_pkg_index,
             all_files = all_files,
             _wrapper_template = ctx.file.wrapper_template,
-            _wrapper_extension = _derive_wrapper_extension(ctx.file.wrapper_template),
+            _wrapper_extension = ctx.attr.wrapper_extension or _derive_wrapper_extension(ctx.file.wrapper_template),
             _wrapper_entrypoint = wrapper_entrypoint,
             _wrapper_runfiles = wrapper_runfiles,
         ),
@@ -164,9 +168,14 @@ The same is true for `wrapper_entrypoint` — a `filegroup` around the entrypoin
 extra runtime data it needs at execution.
 
 The extension appended to the produced wrapper is derived from the template's filename by
-stripping a single known template suffix (`.tpl`, `.template`, `.tmpl`, `.in`). Name the
-template `<something>.<ext>.<template-suffix>` — e.g. `my_wrapper.sh.tpl` yields `.sh`,
-`my_wrapper.bat.template` yields `.bat`.
+splitting the basename on the first `.` and dropping any trailing parts that are known
+template suffixes (`.tpl`, `.template`, `.tmpl`, `.in`); whatever remains is the extension.
+E.g. `my_wrapper.sh.tpl` yields `.sh`, `my_wrapper.bat.template` yields `.bat`,
+`my_wrapper.vhook.tcl.tpl` yields `.vhook.tcl`.
+
+Since the split happens at the FIRST dot, templates whose basename contains a dot in the
+name portion (e.g. `com.foo.wrapper.sh.tpl` intending `.sh`) must set the
+`wrapper_extension` attr explicitly to override the derivation.
 
 ## `ToolchainInfo` contract
 
@@ -234,6 +243,19 @@ is available; alternate wrappers can consume, ignore, or extend it as they see f
         "wrapper_entrypoint": attr.label(
             doc = "Optional `.tcl` file added to the binary's runfiles and referenced via the `{entrypoint}` template substitution. The target's `default_runfiles` are also merged in. Leave unset when the wrapper doesn't need a bootstrap.",
             allow_single_file = True,
+        ),
+        "wrapper_extension": attr.string(
+            doc = ("Extension appended to the produced wrapper (e.g. `.sh`, " +
+                   "`.bat`, `.vhook.tcl`). When empty (default), it's derived " +
+                   "from `wrapper_template`'s filename by splitting the " +
+                   "basename on the first `.` and dropping any trailing parts " +
+                   "that are known template suffixes " +
+                   "(`.tpl`/`.template`/`.tmpl`/`.in`); whatever remains is " +
+                   "the extension. The split happens at the first dot, so " +
+                   "templates whose basename contains a dot in the name " +
+                   "portion (e.g. `com.foo.wrapper.sh.tpl` intending `.sh`) " +
+                   "must set this attr explicitly."),
+            default = "",
         ),
         "wrapper_template": attr.label(
             doc = "Template expanded per `tcl_binary` / `tcl_test`. The target's `default_runfiles` are merged into every produced binary, so a `filegroup` wrapping the template can list helper libraries under `data` (e.g. `@bazel_tools//tools/bash/runfiles`). See the wrapper template contract in the rule docs for the supported substitutions.",
