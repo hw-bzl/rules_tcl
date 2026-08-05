@@ -243,7 +243,7 @@ tcl_library(
 <pre>
 load("@rules_tcl//tcl:defs.bzl", "tcl_toolchain")
 
-tcl_toolchain(<a href="#tcl_toolchain-name">name</a>, <a href="#tcl_toolchain-tclcore">tclcore</a>, <a href="#tcl_toolchain-tcllib">tcllib</a>, <a href="#tcl_toolchain-tclsh">tclsh</a>, <a href="#tcl_toolchain-wrapper_entrypoint">wrapper_entrypoint</a>, <a href="#tcl_toolchain-wrapper_template">wrapper_template</a>)
+tcl_toolchain(<a href="#tcl_toolchain-name">name</a>, <a href="#tcl_toolchain-tclcore">tclcore</a>, <a href="#tcl_toolchain-tcllib">tcllib</a>, <a href="#tcl_toolchain-tclsh">tclsh</a>, <a href="#tcl_toolchain-wrapper_entrypoint">wrapper_entrypoint</a>, <a href="#tcl_toolchain-wrapper_extension">wrapper_extension</a>, <a href="#tcl_toolchain-wrapper_template">wrapper_template</a>)
 </pre>
 <p>A toolchain rule that defines the Tcl interpreter, libraries, and executable wrapper used
 to build <code>tcl_binary</code>, <code>tcl_library</code>, and <code>tcl_test</code> targets.</p>
@@ -280,9 +280,13 @@ the helper under <code>data</code>:</p>
 <p>The same is true for <code>wrapper_entrypoint</code> — a <code>filegroup</code> around the entrypoint can carry
 extra runtime data it needs at execution.</p>
 <p>The extension appended to the produced wrapper is derived from the template's filename by
-stripping a single known template suffix (<code>.tpl</code>, <code>.template</code>, <code>.tmpl</code>, <code>.in</code>). Name the
-template <code>&lt;something&gt;.&lt;ext&gt;.&lt;template-suffix&gt;</code> — e.g. <code>my_wrapper.sh.tpl</code> yields <code>.sh</code>,
-<code>my_wrapper.bat.template</code> yields <code>.bat</code>.</p>
+splitting the basename on the first <code>.</code> and dropping any trailing parts that are known
+template suffixes (<code>.tpl</code>, <code>.template</code>, <code>.tmpl</code>, <code>.in</code>); whatever remains is the extension.
+E.g. <code>my_wrapper.sh.tpl</code> yields <code>.sh</code>, <code>my_wrapper.bat.template</code> yields <code>.bat</code>,
+<code>my_wrapper.vhook.tcl.tpl</code> yields <code>.vhook.tcl</code>.</p>
+<p>Since the split happens at the FIRST dot, templates whose basename contains a dot in the
+name portion (e.g. <code>com.foo.wrapper.sh.tpl</code> intending <code>.sh</code>) must set the
+<code>wrapper_extension</code> attr explicitly to override the derivation.</p>
 <h2 id="toolchaininfo-contract"><a class="header" href="#toolchaininfo-contract"><code>ToolchainInfo</code> contract</a></h2>
 <p>The rule returns a <code>platform_common.ToolchainInfo</code> with the following fields. Non-underscore
 fields are the public contract that consumers (including third-party rules that operate
@@ -331,6 +335,7 @@ is available; alternate wrappers can consume, ignore, or extend it as they see f
 <tr><td style="text-align: left"><a id="tcl_toolchain-tcllib"></a>tcllib</td><td style="text-align: left">A label to the <code>tcllib</code> files.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">optional</td><td style="text-align: left"><code>None</code></td></tr>
 <tr><td style="text-align: left"><a id="tcl_toolchain-tclsh"></a>tclsh</td><td style="text-align: left">The path to a <code>tclsh</code> binary. Runtime dependency of every produced <code>tcl_binary</code> / <code>tcl_test</code>.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">required</td><td style="text-align: left"></td></tr>
 <tr><td style="text-align: left"><a id="tcl_toolchain-wrapper_entrypoint"></a>wrapper_entrypoint</td><td style="text-align: left">Optional <code>.tcl</code> file added to the binary's runfiles and referenced via the <code>{entrypoint}</code> template substitution. The target's <code>default_runfiles</code> are also merged in. Leave unset when the wrapper doesn't need a bootstrap.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">optional</td><td style="text-align: left"><code>None</code></td></tr>
+<tr><td style="text-align: left"><a id="tcl_toolchain-wrapper_extension"></a>wrapper_extension</td><td style="text-align: left">Extension appended to the produced wrapper (e.g. <code>.sh</code>, <code>.bat</code>, <code>.vhook.tcl</code>). When empty (default), it's derived from <code>wrapper_template</code>'s filename by splitting the basename on the first <code>.</code> and dropping any trailing parts that are known template suffixes (<code>.tpl</code>/<code>.template</code>/<code>.tmpl</code>/<code>.in</code>); whatever remains is the extension. The split happens at the first dot, so templates whose basename contains a dot in the name portion (e.g. <code>com.foo.wrapper.sh.tpl</code> intending <code>.sh</code>) must set this attr explicitly.</td><td style="text-align: left">String</td><td style="text-align: left">optional</td><td style="text-align: left"><code>""</code></td></tr>
 <tr><td style="text-align: left"><a id="tcl_toolchain-wrapper_template"></a>wrapper_template</td><td style="text-align: left">Template expanded per <code>tcl_binary</code> / <code>tcl_test</code>. The target's <code>default_runfiles</code> are merged into every produced binary, so a <code>filegroup</code> wrapping the template can list helper libraries under <code>data</code> (e.g. <code>@bazel_tools//tools/bash/runfiles</code>). See the wrapper template contract in the rule docs for the supported substitutions.</td><td style="text-align: left"><a href="https://bazel.build/concepts/labels">Label</a></td><td style="text-align: left">required</td><td style="text-align: left"></td></tr>
 </tbody></table>
 </div>
