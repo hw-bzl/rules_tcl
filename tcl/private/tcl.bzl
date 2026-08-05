@@ -119,7 +119,7 @@ def _create_tcl_info(*, ctx, includes, srcs, dep_info = None):
         transitive_srcs = dep_info.transitive_srcs,
     )
 
-def _find_pkg_index(srcs, label, workspace_name):
+def _find_pkg_index(srcs, workspace_name):
     top_pkg_index = None
     for file in srcs:
         if file.basename == "pkgIndex.tcl":
@@ -130,14 +130,14 @@ def _find_pkg_index(srcs, label, workspace_name):
             if len(top_pkg_index.short_path) > len(file.short_path):
                 top_pkg_index = file
 
-    if top_pkg_index:
-        include = _rlocationpath(top_pkg_index, workspace_name)[:-len("/pkgIndex.tcl")]
-        return struct(
-            pkg_index = top_pkg_index,
-            include = include,
-        )
+    if not top_pkg_index:
+        return None
 
-    fail("No `pkgIndex.tcl` source file was found in `srcs` of `{}`".format(label))
+    include = _rlocationpath(top_pkg_index, workspace_name)[:-len("/pkgIndex.tcl")]
+    return struct(
+        pkg_index = top_pkg_index,
+        include = include,
+    )
 
 def _tcl_library_impl(ctx):
     dep_info = _create_dep_info(
@@ -156,7 +156,8 @@ def _tcl_library_impl(ctx):
         ],
     )
 
-    pkg_info = _find_pkg_index(ctx.files.srcs, ctx.label, ctx.workspace_name)
+    pkg_info = _find_pkg_index(ctx.files.srcs, ctx.workspace_name)
+    includes = [pkg_info.include] if pkg_info else []
 
     return [
         DefaultInfo(
@@ -165,7 +166,7 @@ def _tcl_library_impl(ctx):
         ),
         _create_tcl_info(
             ctx = ctx,
-            includes = [pkg_info.include],
+            includes = includes,
             srcs = ctx.files.srcs,
             dep_info = dep_info,
         ),
@@ -181,14 +182,13 @@ tcl_library = rule(
     doc = """\
 A Tcl library that can be depended upon by other Tcl targets.
 
-A `tcl_library` represents a Tcl package that can be imported using Tcl's `package require` command.
-The library must include a `pkgIndex.tcl` file in its `srcs` attribute, which defines the package
-metadata and how to load the package.
+A `tcl_library` groups a set of `.tcl` or `.do` source files that can be consumed by other Tcl
+targets. If a `pkgIndex.tcl` file is included in `srcs`, its directory is added to the consumer's
+`auto_path` so the package can be loaded with Tcl's `package require` command. Libraries without a
+`pkgIndex.tcl` are still made available through runfiles and can be loaded directly with `source`
+(typically via the runfiles library's `rlocation`).
 
-**Important**: The `pkgIndex.tcl` file must be included in the `srcs` attribute. This file is used
-by Tcl's package system to locate and load the package.
-
-Example:
+Example with `package require`:
 
 ```python
 load("@rules_tcl//tcl:defs.bzl", "tcl_library")

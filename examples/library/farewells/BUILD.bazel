@@ -1,0 +1,12 @@
+load("@rules_tcl//tcl:tcl_library.bzl", "tcl_library")
+
+exports_files(
+    ["farewell.tcl"],
+    visibility = ["//library:__subpackages__"],
+)
+
+tcl_library(
+    name = "farewells",
+    srcs = ["farewell.tcl"],
+    visibility = ["//library:__subpackages__"],
+)

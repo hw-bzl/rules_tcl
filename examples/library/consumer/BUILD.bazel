@@ -3,5 +3,13 @@ load("@rules_tcl//tcl:tcl_binary.bzl", "tcl_binary")
 tcl_binary(
     name = "hello_world",
     srcs = ["hello_world.tcl"],
-    deps = ["//library/greetings"],
+    data = ["//library/farewells:farewell.tcl"],
+    env = {
+        "FAREWELL_TCL": "$(rlocationpath //library/farewells:farewell.tcl)",
+    },
+    deps = [
+        "//library/farewells",
+        "//library/greetings",
+        "@rules_tcl//tcl/runfiles",
+    ],
 )

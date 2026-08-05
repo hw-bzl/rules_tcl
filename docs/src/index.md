@@ -92,7 +92,11 @@ tcl_library(
     name = "greetings",
     srcs = [
         "greet.tcl",
-        "pkgIndex.tcl",  # Required for libraries
+        "pkgIndex.tcl",  # Include to make the library available via `package require`
     ],
 )
 ```
+
+A `pkgIndex.tcl` is only needed when consumers will load the library with
+`package require`. Libraries without one are still available to their
+dependents through runfiles and can be loaded directly with `source`.
