@@ -50,6 +50,13 @@ register_toolchains(
 bazel_dep(name = "stardoc", version = "0.8.0", dev_dependency = True)
 bazel_dep(name = "rules_rust_mdbook", version = "0.73.0", dev_dependency = True)
 
+nagelfar_external_pkg = use_extension(
+    "//tcl/nagelfar/private/tests/external_repo:extensions.bzl",
+    "nagelfar_external_pkg",
+    dev_dependency = True,
+)
+use_repo(nagelfar_external_pkg, "nagelfar_external_pkg")
+
 register_toolchains(
     "//tools/toolchains:black_toolchain",
     "//tools/toolchains:isort_toolchain",

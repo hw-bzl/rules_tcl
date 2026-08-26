@@ -1,6 +1,7 @@
 """Tclint lint and format rules"""
 
-load("//tcl/private:providers.bzl", "TclInfo", "find_srcs")
+load("//tcl/private:providers.bzl", "TclInfo")
+load("//tcl/private:utils.bzl", "find_srcs")
 
 def _rlocationpath(file, workspace_name):
     if file.short_path.startswith("../"):

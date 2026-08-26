@@ -1,0 +1,13 @@
+load("//tcl:tcl_library.bzl", "tcl_library")
+load("//tcl/nagelfar:tcl_nagelfar_test.bzl", "tcl_nagelfar_test")
+
+tcl_library(
+    name = "consumer",
+    srcs = ["consumer.tcl"],
+    deps = ["@nagelfar_external_pkg//:external_pkg"],
+)
+
+tcl_nagelfar_test(
+    name = "consumer_nagelfar",
+    target = ":consumer",
+)

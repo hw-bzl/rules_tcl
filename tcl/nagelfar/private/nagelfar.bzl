@@ -2,8 +2,9 @@
 
 load("//tcl/nagelfar:nagelfar_syntaxdb.bzl", "NagelfarSyntaxdbInfo")
 load("//tcl/nagelfar:nagelfar_toolchain.bzl", "NAGELFAR_TOOLCHAIN_TYPE")
-load("//tcl/private:providers.bzl", "TclInfo", "find_srcs")
+load("//tcl/private:providers.bzl", "TclInfo")
 load("//tcl/private:toolchain.bzl", "TOOLCHAIN_TYPE")
+load("//tcl/private:utils.bzl", "find_source_files")
 
 def _rlocationpath(file, workspace_name):
     if file.short_path.startswith("../"):
@@ -34,35 +35,44 @@ def _gather_dep_syntaxdbs(ctx):
 def _tcl_nagelfar_aspect_impl(target, ctx):
     graph_syntaxdbs = _gather_dep_syntaxdbs(ctx)
 
-    srcs = find_srcs(target)
-    if not srcs:
-        return [NagelfarSyntaxdbInfo(files = graph_syntaxdbs)]
-
-    lint_srcs = [src for src in srcs if src.basename != "pkgIndex.tcl"]
-    if not lint_srcs:
+    # Every source contributes to the header pass (syntaxdb), including
+    # external Tcl packages — otherwise downstream consumers of
+    # `@rules_tcl` / `@rules_vivado` Tcl libraries would get "Unknown
+    # command" warnings for every call into those packages. The check
+    # pass is separately gated on the target being main-repo (see
+    # `skip_check` below), so we don't lint external sources.
+    header_srcs = [
+        src
+        for src in find_source_files(target)
+        if src.basename != "pkgIndex.tcl"
+    ]
+    if not header_srcs:
         return [NagelfarSyntaxdbInfo(files = graph_syntaxdbs)]
 
     # `no_lint`-tagged targets skip the check pass but still emit a
     # syntaxdb, so downstream nagelfar runs can resolve their procs and
     # namespaces. Without that, tagging out one library would make every
-    # caller warn "Unknown command".
+    # caller warn "Unknown command". External targets get the same
+    # header-only treatment — the check pass would surface findings we
+    # can't fix from this repo.
     ignore_tags = [
         "no_tcl_nagelfar",
         "no_nagelfar",
         "no_lint",
         "nolint",
     ]
-    skip_check = False
-    for tag in ctx.rule.attr.tags:
-        sanitized = tag.replace("-", "_").lower()
-        if sanitized in ignore_tags:
-            skip_check = True
-            break
+    skip_check = target.label.workspace_root.startswith("external")
+    if not skip_check:
+        for tag in ctx.rule.attr.tags:
+            sanitized = tag.replace("-", "_").lower()
+            if sanitized in ignore_tags:
+                skip_check = True
+                break
 
     syntaxdb = ctx.actions.declare_file("{}.syntaxdb.tcl".format(target.label.name))
 
     args = ctx.actions.args()
-    args.add_all(lint_srcs, format_each = "--src=%s")
+    args.add_all(header_srcs, format_each = "--src=%s")
     args.add("--header-output", syntaxdb)
     if skip_check:
         args.add("--skip-check")
@@ -76,10 +86,10 @@ def _tcl_nagelfar_aspect_impl(target, ctx):
     args.add_all(nagelfar_toolchain.extra_args, format_each = "--nagelfar-arg=%s")
 
     # `TclNagelfarHdr` when we only materialize a syntaxdb for
-    # downstream aspect runs (skip-check, e.g. `no_lint` targets);
-    # `TclNagelfarCheck` when we also run the lint check. Distinct
-    # mnemonics keep BEP/timeline readers honest about which action
-    # actually gated on findings.
+    # downstream aspect runs (skip-check, e.g. `no_lint` targets or
+    # external targets); `TclNagelfarCheck` when we also run the lint
+    # check. Distinct mnemonics keep BEP/timeline readers honest about
+    # which action actually gated on findings.
     mnemonic = "TclNagelfarHdr" if skip_check else "TclNagelfarCheck"
 
     ctx.actions.run(
@@ -87,7 +97,7 @@ def _tcl_nagelfar_aspect_impl(target, ctx):
         executable = ctx.executable._runner,
         arguments = [args],
         inputs = depset(
-            lint_srcs + [nagelfar_toolchain.nagelfar] + nagelfar_toolchain.syntaxdb,
+            header_srcs + [nagelfar_toolchain.nagelfar] + nagelfar_toolchain.syntaxdb,
             transitive = [toolchain.all_files, graph_syntaxdbs],
         ),
         tools = [ctx.executable._runner],
