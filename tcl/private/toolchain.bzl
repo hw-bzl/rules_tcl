@@ -186,7 +186,7 @@ expand to the empty string, so a template can simply omit lines it does not need
 | `{main}`             | Runfiles path of the target's entry `.tcl` (resolved from `main` / `srcs`).           | never                        |
 | `{init_tcl}`         | Runfiles path of tclcore's `init.tcl`.                                                | `tclcore` unset              |
 | `{tcllib_pkg_index}` | Runfiles path of tcllib's top-level `pkgIndex.tcl`.                                   | `tcllib` unset               |
-| `{auto_path}`        | Tcl-list literal (brace-quoted) of every include path visible to the target — the target's own workspace, each dep's `TclInfo.includes`, and the toolchain's `includes`. Suitable to `lappend` onto `auto_path`. | never |
+| `{auto_path}`        | Tcl-list literal (brace-quoted) of every include path visible to the target — the target's own workspace, the transitive closure of its deps' `TclInfo.includes`, and the toolchain's `includes`, ordered nearest-first. Suitable to `lappend` onto `auto_path`. | never |
 
 The `{config}` file is JSON with this shape:
 

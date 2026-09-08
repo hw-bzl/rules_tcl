@@ -80,6 +80,7 @@ def _create_dep_info(*, ctx, deps):
         srcs.append(info.srcs)
         srcs.append(info.transitive_srcs)
         includes.append(info.includes)
+        includes.append(info.transitive_includes)
         workspace_name = dep.label.workspace_name
         if not workspace_name:
             workspace_name = ctx.workspace_name
@@ -87,7 +88,7 @@ def _create_dep_info(*, ctx, deps):
         runfiles = runfiles.merge(dep[DefaultInfo].default_runfiles)
 
     return struct(
-        transitive_includes = depset(include_workspaces, transitive = includes),
+        transitive_includes = depset(include_workspaces, transitive = includes, order = "preorder"),
         transitive_srcs = depset(transitive = srcs, order = "postorder"),
         # Runfiles from dependencies.
         runfiles = runfiles,
@@ -109,7 +110,7 @@ def _create_tcl_info(*, ctx, includes, srcs, dep_info = None):
         dep_info = _create_dep_info(ctx = ctx, deps = [])
 
     return TclInfo(
-        includes = depset(includes),
+        includes = depset(includes, order = "preorder"),
         transitive_includes = dep_info.transitive_includes,
         srcs = depset(
             srcs,
@@ -334,11 +335,6 @@ def _tcl_binary_impl(ctx):
     if not workspace_name:
         workspace_name = "_main"
 
-    include_paths = depset(
-        [workspace_name],
-        transitive = [dep[TclInfo].includes for dep in ctx.attr.deps] + [toolchain.includes],
-    ).to_list()
-
     output = ctx.actions.declare_file("{}{}".format(ctx.label.name, toolchain._wrapper_extension))
     config = ctx.actions.declare_file("{}.config.json".format(ctx.label.name))
 
@@ -346,6 +342,16 @@ def _tcl_binary_impl(ctx):
         ctx = ctx,
         deps = ctx.attr.deps,
     )
+
+    # `transitive_includes` already folds in each dep's own `includes`, so
+    # a `package require` reaches libraries the deps pull in, not just the
+    # ones named here. `preorder` keeps the nearest includes first so closer
+    # deps take priority over the ones they pull in and over the toolchain.
+    include_paths = depset(
+        [workspace_name],
+        transitive = [dep_info.transitive_includes, toolchain.includes],
+        order = "preorder",
+    ).to_list()
 
     runfiles = dep_info.runfiles.merge_all([
         ctx.runfiles(
