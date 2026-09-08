@@ -401,7 +401,7 @@ expand to the empty string, so a template can simply omit lines it does not need
 <tr><td><code>{main}</code></td><td>Runfiles path of the target's entry <code>.tcl</code> (resolved from <code>main</code> / <code>srcs</code>).</td><td>never</td></tr>
 <tr><td><code>{init_tcl}</code></td><td>Runfiles path of tclcore's <code>init.tcl</code>.</td><td><code>tclcore</code> unset</td></tr>
 <tr><td><code>{tcllib_pkg_index}</code></td><td>Runfiles path of tcllib's top-level <code>pkgIndex.tcl</code>.</td><td><code>tcllib</code> unset</td></tr>
-<tr><td><code>{auto_path}</code></td><td>Tcl-list literal (brace-quoted) of every include path visible to the target — the target's own workspace, each dep's <code>TclInfo.includes</code>, and the toolchain's <code>includes</code>. Suitable to <code>lappend</code> onto <code>auto_path</code>.</td><td>never</td></tr>
+<tr><td><code>{auto_path}</code></td><td>Tcl-list literal (brace-quoted) of every include path visible to the target — the target's own workspace, the transitive closure of its deps' <code>TclInfo.includes</code>, and the toolchain's <code>includes</code>, ordered nearest-first. Suitable to <code>lappend</code> onto <code>auto_path</code>.</td><td>never</td></tr>
 </tbody></table>
 </div>
 <p>The <code>{config}</code> file is JSON with this shape:</p>
