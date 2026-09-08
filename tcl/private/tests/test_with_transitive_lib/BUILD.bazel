@@ -1,0 +1,7 @@
+load("//tcl:tcl_test.bzl", "tcl_test")
+
+tcl_test(
+    name = "shoutlib_test",
+    srcs = ["shoutlib_test.tcl"],
+    deps = ["//tcl/private/tests/library/shoutlib"],
+)
