@@ -35,7 +35,9 @@ def _tclint_extension_impl(module_ctx):
             _tclint_toolchains_repo(
                 name = "tclint_toolchains",
             )
-            return
+            return module_ctx.extension_metadata(reproducible = True)
+
+    return module_ctx.extension_metadata(reproducible = True)
 
 tclint = module_extension(
     implementation = _tclint_extension_impl,
